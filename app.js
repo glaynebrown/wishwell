@@ -62,12 +62,12 @@
     return list.slice().sort(by);
   }
 
-  function toast(msg) {
+  function toast(msg, ms) {
     const t = $('#toast');
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(toast.t);
-    toast.t = setTimeout(() => t.classList.remove('show'), 2400);
+    toast.t = setTimeout(() => t.classList.remove('show'), ms || 2400);
   }
   function oops(e) { console.error(e); toast((e && e.message && e.message.length < 140 ? e.message : 'Something went wrong — try again.')); }
 
@@ -538,17 +538,16 @@
     const when = `<span class="up-when ${r.ev.days <= 14 ? 'soon' : ''}">${Dates.inWords(r.ev.days)}</span>`;
     if (r.p) {
       return `<a class="up-row" href="#/p/${encodeURIComponent(r.p.uid)}"><span class="up-emoji">${r.ev.emoji}</span>
-        <span class="up-main"><span class="up-title">${esc(Dates.title(r.ev, r.p.name))}</span><br><span class="up-sub">${Dates.fmt(r.ev.date, true)} · ${(S.items[r.p.uid] || []).length} on their list</span></span>${when}</a>`;
+        <span class="up-main"><span class="up-title">${esc(Dates.title(r.ev, r.p.name))}</span><br><span class="up-sub">${Dates.fmt(r.ev.date, true)}</span></span>${when}</a>`;
     }
     return `<div class="up-row"><span class="up-emoji">${r.ev.emoji}</span>
-      <span class="up-main"><span class="up-title">${esc(r.ev.name)}</span><br><span class="up-sub">${Dates.fmt(r.ev.date, true)} · ${r.people.map(p => `<a href="#/p/${encodeURIComponent(p.uid)}">${esc(p.name)}</a>`).join(', ')}</span></span>${when}</div>`;
+      <span class="up-main"><span class="up-title">${esc(r.ev.name)}</span><br><span class="up-sub">${Dates.fmt(r.ev.date, true)}</span></span>${when}</div>`;
   }
   function personRow(p) {
     const ev = nextEvent(p);
-    const n = (S.items[p.uid] || []).length;
     return `<a class="person-row" href="#/p/${encodeURIComponent(p.uid)}">${avatar(p)}
       <span class="person-main"><span class="person-name">${esc(p.name)}</span><br>
-      <span class="person-sub">${n} wish${n === 1 ? '' : 'es'}${ev ? ` · ${ev.emoji} ${esc(ev.kind === 'holiday' ? ev.name : ev.name)} ${Dates.inWords(ev.days)}` : ''}</span></span>
+      <span class="person-sub">${ev ? `${ev.emoji} ${esc(ev.name)} · ${Dates.fmt(ev.date)} · ${Dates.inWords(ev.days)}` : 'No dates added yet'}</span></span>
       <span class="chev">›</span></a>`;
   }
 
@@ -686,7 +685,8 @@
       ev.stopPropagation();
       const e = find(b.dataset.claim, b.dataset.kind);
       if (!e) return;
-      try { await API.claim(owner, e.id, b.dataset.kind, e, myName()); toast('It’s yours to get — find it under Shopping'); } catch (err) { oops(err); }
+      const who = S.people[owner] ? S.people[owner].name : 'they';
+      try { await API.claim(owner, e.id, b.dataset.kind, e, myName()); toast(`You’re getting this! Others will see it’s taken so no one doubles up — ${who} won’t see it. Find it in Shopping.`, 5000); } catch (err) { oops(err); }
     });
     view.querySelectorAll('[data-unclaim]').forEach(b => b.onclick = async ev => {
       ev.stopPropagation();
@@ -777,7 +777,7 @@
         <div class="wishes">${cards}</div></section>`;
     }).join('');
     view.innerHTML = `<div class="page-head"><div><h1>Shopping</h1><p class="sub">${all.length ? `${all.length} gift${all.length === 1 ? '' : 's'} you’re getting${grand ? ` · about ${money(grand)}` : ''}` : 'Gifts you’ve claimed show up here.'}</p></div></div>
-      ${all.length ? blocks + `<p class="hint center">Tap <b>Given</b> once they’ve opened it — it clears off their list for everyone.</p>` : `<div class="card empty"><svg class="mark"><use href="#i-mark"/></svg><h2>Nothing claimed yet</h2>
+      ${all.length ? blocks + `<p class="hint center">Tap <b>Given</b> once they’ve opened it to clear it from their list.</p>` : `<div class="card empty"><svg class="mark"><use href="#i-mark"/></svg><h2>Nothing claimed yet</h2>
         <p>When you tap “I’ll get this” on someone’s list, it lands here so you can shop in one place.</p><a class="btn" href="#/people">See people</a></div>`}`;
     view.querySelectorAll('.shop-person').forEach(sec => {
       const o = sec.dataset.owner;
