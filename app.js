@@ -564,7 +564,7 @@
     const groups = S.groups.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     const nobody = !groups.length && !S.links.length;
     view.innerHTML = `
-      <div class="page-head"><div><h1>People</h1><p class="sub">Tap someone to see their list.</p></div></div>
+      <div class="page-head"><div><h1>People</h1><p class="sub">Tap someone to see their wishlist.</p></div></div>
       ${ups.length ? `<div class="card"><div class="circle-head"><h3>Coming up</h3></div><div class="upcoming">${ups.map(upRow).join('')}</div></div>` : ''}
       ${groups.map(g => {
         const mem = (g.members || []).filter(m => m !== S.me).map(m => S.people[m]).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
@@ -733,8 +733,8 @@
     const whoSees = groups.length ? `Only ${groups.map(g => esc(g.name)).join(' and ')} can see these — never ${esc(p.name)}.` : `Only you can see ideas you add here — ${esc(p.name)} can’t.`;
     view.innerHTML = `<a class="back" href="#/people">${icon('back')}People</a>
       <div class="person-head"><div><h1>${esc(p.name)}</h1><p class="sub muted" style="margin:2px 0 0">${esc(circleWords(uid))}</p></div></div>
-      <div class="event-tiles">${evs.map(ev => `<div class="event-tile ${ev.days <= 14 ? 'soon' : ''}"><span class="et-emoji">${ev.emoji}</span><span class="et-name">${esc(ev.name)}</span><span class="et-date">${Dates.fmt(ev.date)}</span><span class="et-when">${Dates.inWords(ev.days)}</span></div>`).join('')}
-        <button class="event-tile add" id="edit-dates">${icon(evs.length ? 'edit' : 'plus')}<span class="et-name">${evs.length ? 'Edit dates' : 'Add dates'}</span></button></div>
+      <p class="date-line">${evs.length ? evs.map(ev => `<span title="${esc(ev.name)} · ${Dates.inWords(ev.days)}">${ev.emoji} ${Dates.fmt(ev.date)}</span>`).join('<span aria-hidden="true">·</span>') : '<span>No dates yet</span>'}
+        <button class="edit-btn" id="edit-dates" aria-label="${evs.length ? 'Edit dates' : 'Add dates'}">${icon(evs.length ? 'edit' : 'plus')}</button></p>
       <div class="section-title" style="margin-top:6px;align-items:center"><h2>${esc(Dates.possessive(p.name))} wishes</h2>${(S.items[uid] || []).length > 1 ? sortPick() : ''}</div>
       ${items.length ? `<div class="wishes">${items.map(e => giverCard(uid, e, 'item')).join('')}</div>` : `<div class="card empty" style="padding:28px 20px"><p style="margin:0">${(S.items[uid] || []).length ? 'Everything on this list has been claimed.' : `${esc(p.name)} hasn’t added any wishes yet.`}</p></div>`}
       ${taken ? `<p class="center" style="margin:14px 0 0"><button class="linkbtn quiet-link" id="toggle-taken">${ui.showTaken ? 'Hide claimed' : `${taken} claimed — show`}</button></p>` : ''}

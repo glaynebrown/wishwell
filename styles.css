@@ -247,17 +247,8 @@ main { max-width: 760px; margin: 0 auto; padding: 8px 20px 40px; }
 .chev { color: var(--faint); }
 
 .person-head { display: flex; align-items: center; gap: 16px; margin: 12px 0 6px; }
-.event-tiles { display: flex; gap: 8px; overflow-x: auto; margin: 14px -20px 18px; padding: 2px 20px; scrollbar-width: none; }
-.event-tiles::-webkit-scrollbar { display: none; }
-.event-tile { flex: none; min-width: 96px; display: grid; gap: 1px; padding: 10px 12px; border-radius: 14px; background: var(--softer); }
-.event-tile.soon { background: var(--soft); }
-.et-emoji { font-size: 20px; line-height: 1.2; }
-.et-name { font-weight: 700; font-size: 14px; color: var(--ink); white-space: nowrap; }
-.et-date { font-size: 13px; color: var(--muted); }
-.et-when { font-size: 12.5px; font-weight: 700; color: var(--deep); }
-.event-tile.add { border: 1.5px dashed var(--line); background: none; align-content: center; justify-items: start; gap: 4px; cursor: pointer; color: var(--muted); font: inherit; text-align: left; }
-.event-tile.add .icon { width: 18px; height: 18px; }
-.event-tile.add .et-name { color: var(--muted); }
+.date-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 14.5px; margin: 8px 0 22px; }
+.date-line .edit-btn { margin-left: 0; }
 
 .secret {
   margin-top: 34px; border-radius: 22px; padding: 18px;
