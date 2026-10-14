@@ -991,7 +991,7 @@
       </div><div class="col">
         <div class="card">
           <h3 style="margin-bottom:6px">Sharing</h3>
-          <p class="hint" style="margin:0 0 12px">Your code shares just your list with one person (and theirs with you).</p>
+          <p class="hint" style="margin:0 0 12px">Your individual code, used to connect 1-to-1 (like with a friend). You’ll see each other’s lists.</p>
           <div class="mycode"><span class="code">${esc(fmtCode(P.code))}</span><button class="edit-btn" id="st-newcode" aria-label="Change my code">${icon('edit')}</button><button class="btn small" id="st-share" style="margin-left:auto">${icon('copy')}Share</button></div>
           <div class="field" style="margin-top:18px"><span class="label">Family groups</span>
             ${S.groups.length ? S.groups.map(g => `<div class="group-row">
