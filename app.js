@@ -734,7 +734,7 @@
     const whoSees = groups.length ? `Only ${groups.map(g => esc(g.name)).join(' and ')} can see these — never ${esc(p.name)}.` : `Only you can see ideas you add here — ${esc(p.name)} can’t.`;
     view.innerHTML = `<a class="back" href="#/people">${icon('back')}People</a>
       <div class="person-head">${avatar(p, true)}<div><h1>${esc(p.name)}</h1><p class="sub muted" style="margin:2px 0 0">${esc(circleWords(uid))}</p></div></div>
-      ${evs.length ? `<div class="event-chips">${evs.map(ev => `<span class="event-chip">${ev.emoji} <b>${esc(ev.kind === 'custom' ? ev.name : ev.name)}</b> · ${Dates.fmt(ev.date)} · ${Dates.inWords(ev.days)}</span>`).join('')}</div>` : '<div style="height:12px"></div>'}
+      ${evs.length ? `<div class="event-tiles">${evs.map(ev => `<div class="event-tile ${ev.days <= 14 ? 'soon' : ''}"><span class="et-emoji">${ev.emoji}</span><span class="et-name">${esc(ev.name)}</span><span class="et-date">${Dates.fmt(ev.date)}</span><span class="et-when">${Dates.inWords(ev.days)}</span></div>`).join('')}</div>` : '<div style="height:12px"></div>'}
       <div class="section-title" style="margin-top:6px;align-items:center"><h2>${esc(Dates.possessive(p.name))} wishes</h2>${(S.items[uid] || []).length > 1 ? sortPick() : ''}</div>
       ${items.length ? `<div class="wishes">${items.map(e => giverCard(uid, e, 'item')).join('')}</div>` : `<div class="card empty" style="padding:28px 20px"><p style="margin:0">${(S.items[uid] || []).length ? 'Everything on this list has been claimed.' : `${esc(p.name)} hasn’t added any wishes yet.`}</p></div>`}
       ${taken ? `<p class="center" style="margin:14px 0 0"><button class="linkbtn quiet-link" id="toggle-taken">${ui.showTaken ? 'Hide claimed' : `${taken} claimed — show`}</button></p>` : ''}
