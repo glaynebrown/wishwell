@@ -4,7 +4,8 @@
    network; past that it just says no until tomorrow, never charges). Big stores
    (Amazon, Target, Walmart...) often block it, so the product name is also read
    out of the link itself, e.g. target.com/p/stanley-40oz-quencher-tumbler/-/A-123
-   -> "Stanley 40oz Quencher Tumbler". Everything stays editable. */
+   -> "Stanley 40oz Quencher Tumbler". Short share links (a.co/…, amzn.to/…)
+   are saved as the full store link they lead to. Everything stays editable. */
 
 const Lookup = (() => {
   const JUNK = /access denied|robot|captcha|just a moment|attention required|page not found|not found|sign in|are you a human|blocked|error/i;
@@ -16,6 +17,7 @@ const Lookup = (() => {
     crateandbarrel: 'Crate & Barrel', wayfair: 'Wayfair', apple: 'Apple', nike: 'Nike', rei: 'REI',
     tjmaxx: 'TJ Maxx', marshalls: 'Marshalls', hobbylobby: 'Hobby Lobby', michaels: 'Michaels', dickssportinggoods: 'Dick’s',
   };
+  const SHORT = /^(www\.)?(a\.co|amzn\.to|amzn\.eu|amzn\.asia|bit\.ly|tinyurl\.com|t\.co|goo\.gl|etsy\.me|tgt\.gifts|go\.shopmy\.us|liketk\.it|shopstyle\.it)$/i;
   const SKIP = new Set(['p', 'dp', 'ip', 'gp', 'product', 'products', 'w', 'en-us', 'us', 'shop', 'listing', 'item', 'itm', 'pd', 'b', 's']);
 
   function parse(url) { try { return new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url); } catch (e) { return null; } }
@@ -51,7 +53,7 @@ const Lookup = (() => {
 
   // -> { name, photo, store, link, found, limited }
   async function lookup(raw) {
-    const u = parse(raw.trim());
+    let u = parse(raw.trim());
     if (!u) return { found: false };
     const out = { link: u.href, store: storeName(u), name: nameFromLink(u), photo: '' };
     try {
@@ -63,6 +65,15 @@ const Lookup = (() => {
       const j = await r.json().catch(() => ({}));
       if (j.status === 'success' && j.data) {
         const d = j.data;
+        // Short share links (a.co/…, amzn.to/…) come back as the full store link -- keep that.
+        const full = SHORT.test(u.hostname) && d.url && parse(d.url);
+        if (full && /^https?:$/.test(full.protocol) && !SHORT.test(full.hostname)) {
+          out.name = nameFromLink(full) || out.name;
+          const asin = /amazon\./i.test(full.hostname) && (full.pathname.match(/\/([A-Z0-9]{10})(?:[/?]|$)/) || [])[1];
+          out.link = asin ? 'https://www.amazon.com/dp/' + asin : full.href;
+          out.store = storeName(full);
+          u = full;
+        }
         const lastSeg = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || '');
         const t = cleanTitle(d.title, out.store);
         const good = t && !JUNK.test(t) && t.toLowerCase() !== out.store.toLowerCase()
