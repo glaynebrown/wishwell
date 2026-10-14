@@ -53,7 +53,7 @@ async function main() {
       for (const ev of Dates.events(p, undefined, uid)) {
         if (!remind.includes(ev.days)) continue;
         if (ev.kind === 'holiday') (holidays[ev.key] = holidays[ev.key] || { ev, who: [] }).who.push(p.name);
-        else hits.push({ days: ev.days, text: `${Dates.title(ev, p.name)} is ${WORDS[ev.days] || Dates.inWords(ev.days)}`, url: APP_URL + '#/p/' + other });
+        else hits.push({ days: ev.days, text: ev.turning ? `${p.name} turns ${ev.turning} ${WORDS[ev.days] || Dates.inWords(ev.days)}` : `${Dates.title(ev, p.name)} is ${WORDS[ev.days] || Dates.inWords(ev.days)}`, url: APP_URL + '#/p/' + other });
       }
     }
     for (const h of Object.values(holidays)) {

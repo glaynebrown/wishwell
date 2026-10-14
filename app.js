@@ -113,8 +113,12 @@
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
+  // Always open at the top (don't let the browser restore an old scroll spot).
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  let freshStart = true;
   API.onUser(u => {
     user = u;
+    freshStart = true;
     if (!u) { S = null; API.stop(); renderWelcome(); return; }
     view.innerHTML = '<p class="loading">Loading…</p>';
     API.start(s => { S = s; render(); });
@@ -144,6 +148,7 @@
     const screens = { list: viewList, received: viewReceived, people: viewPeople, p: viewPerson, shopping: viewShopping, settings: viewSettings };
     (screens[r.name] || viewList)(r.arg);
     renderBanner();
+    if (freshStart) { freshStart = false; window.scrollTo(0, 0); }
   }
 
   function applyFont(f) {
@@ -194,6 +199,7 @@
   // ---------- signed out ----------
   function renderWelcome(mode = 'in', msg = '') {
     $('#top').hidden = true;
+    window.scrollTo(0, 0);
     $('#banner').hidden = true;
     const up = mode === 'up';
     view.innerHTML = `<div class="welcome">
@@ -243,13 +249,14 @@
   // ---------- first time ----------
   function renderSetup() {
     $('#top').hidden = true;
+    window.scrollTo(0, 0);
     view.innerHTML = `<div class="welcome">
       <svg class="brand-mark" aria-hidden="true"><use href="#i-mark"/></svg>
       <h1>Welcome!</h1>
       <p class="tagline">A couple of things so your people know when to shop.</p>
       <form class="card" id="setup">
         <div class="field"><label for="s-name">Your name</label><input class="input" id="s-name" value="${esc(signUpName || user.name || '')}" required></div>
-        <div class="field"><span class="label">Your birthday</span>${mdPicker('s-bday', '')}</div>
+        <div class="field"><span class="label">Your birthday <span class="muted">(year optional)</span></span>${mdPicker('s-bday', '', '')}</div>
         <div class="field"><span class="label">Holidays you <i>get</i> gifts for</span>${holidayChips(['christmas'])}
           <p class="hint" style="margin-top:2px">You can change these, add an anniversary, or add other occasions (like a graduation) anytime in Settings.</p></div>
         <button class="btn wide" type="submit">Continue</button>
@@ -260,7 +267,7 @@
       const name = $('#s-name').value.trim() || user.name || 'Me';
       try {
         await API.createProfile({
-          name, birthday: readMD('s-bday'), anniversary: '', custom: [],
+          name, birthday: readMD('s-bday'), birthYear: readYear('s-bday'), anniversary: '', custom: [],
           holidays: [...view.querySelectorAll('[name=hol]:checked')].map(x => x.value),
           remind: [14, 7], palette: ls.get('ww-palette', 'sage'),
         });
@@ -269,12 +276,20 @@
     };
   }
 
-  function mdPicker(id, md) {
+  // withYear: show an optional year box (birthdays) -- pass the current year or ''
+  function mdPicker(id, md, withYear) {
     const [m, d] = Dates.valid(md) ? md.split('-').map(Number) : [0, 0];
-    return `<div class="md">
+    const yr = withYear !== undefined ? `<input class="input" id="${id}-y" inputmode="numeric" maxlength="4" placeholder="Year" aria-label="Birth year (optional)" value="${esc(withYear || '')}">` : '';
+    return `<div class="md ${yr ? 'with-year' : ''}">
       <select class="input" id="${id}-m" aria-label="Month"><option value="">Month</option>${Dates.MONTHS.map((n, i) => `<option value="${i + 1}" ${m === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select>
-      <select class="input" id="${id}-d" aria-label="Day"><option value="">Day</option>${Array.from({ length: 31 }, (_, i) => `<option ${d === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>
+      <select class="input" id="${id}-d" aria-label="Day"><option value="">Day</option>${Array.from({ length: 31 }, (_, i) => `<option ${d === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>${yr}
     </div>`;
+  }
+  // '' or a sensible 4-digit year
+  function readYear(id) {
+    const el = $('#' + id + '-y');
+    const y = el ? parseInt(el.value, 10) : NaN;
+    return y > 1900 && y <= new Date().getFullYear() ? y : '';
   }
   function readMD(id) {
     const m = $('#' + id + '-m').value;
@@ -550,10 +565,11 @@
       <span class="up-main"><span class="up-title">${esc(r.ev.name)}</span><br><span class="up-sub">${Dates.fmt(r.ev.date, true)}</span></span>${when}</div>`;
   }
   function personRow(p) {
-    const bday = Dates.valid(p.birthday) ? Dates.fmtMD(p.birthday) : '';
+    const bev = Dates.events(p, undefined, S.me).find(e => e.kind === 'birthday');
     return `<a class="person-row" href="#/p/${encodeURIComponent(p.uid)}">
       <span class="pr-name">${esc(p.name)}</span>
-      <span class="pr-next">${bday ? `🎂 ${bday}` : 'No birthday yet'}</span>
+      ${bev && bev.turning ? `<span class="pr-age">Turning ${bev.turning}</span>` : ''}
+      <span class="pr-next">${bev ? `🎂 ${Dates.fmtMD(p.birthday)}` : 'No birthday yet'}</span>
       <span class="chev">›</span></a>`;
   }
 
@@ -736,7 +752,7 @@
     const whoSees = groups.length ? `Seen by ${groups.map(g => esc(g.name)).join(' and ')}, or just you — never ${esc(p.name)}.` : `Only you can see ideas you add here — ${esc(p.name)} can’t.`;
     view.innerHTML = `<a class="back" href="#/people">${icon('back')}People</a>
       <div class="person-head"><div><h1>${esc(p.name)}</h1><p class="sub muted" style="margin:2px 0 0">${esc(circleWords(uid))}</p></div></div>
-      <p class="date-line">${evs.length ? evs.map(ev => `<span title="${esc(ev.name)} · ${Dates.inWords(ev.days)}">${ev.emoji} ${Dates.fmt(ev.date)}</span>`).join('<span aria-hidden="true">·</span>') : '<span>No dates yet</span>'}
+      <p class="date-line">${evs.length ? evs.map(ev => `<span title="${esc(ev.name)} · ${Dates.inWords(ev.days)}">${ev.emoji} ${Dates.fmt(ev.date)}${ev.turning ? ` (turns ${ev.turning})` : ''}</span>`).join('<span aria-hidden="true">·</span>') : '<span>No dates yet</span>'}
         <button class="edit-btn" id="edit-dates" aria-label="${evs.length ? 'Edit dates' : 'Add dates'}">${icon(evs.length ? 'edit' : 'plus')}</button></p>
       <div class="section-title" style="margin-top:6px;align-items:center"><h2>${esc(Dates.possessive(p.name))} wishes</h2>${(S.items[uid] || []).length > 1 ? sortPick() : ''}</div>
       ${items.length ? `<div class="wishes">${items.map(e => giverCard(uid, e, 'item')).join('')}</div>` : `<div class="card empty" style="padding:28px 20px"><p style="margin:0">${(S.items[uid] || []).length ? 'Everything on this list has been claimed.' : `${esc(p.name)} hasn’t added any wishes yet.`}</p></div>`}
@@ -758,14 +774,15 @@
   function datesSheet(p) {
     openSheet(`<div class="sheet-head"><h2>${esc(Dates.possessive(p.name))} dates</h2><button class="btn quiet" data-act="close">Cancel</button></div>
       <p class="hint" style="margin:-8px 0 14px">This updates ${esc(p.name)}’s own settings, so everyone linked to them sees it — and they can change it too.</p>
-      <div class="field"><span class="label">Birthday</span>${mdPicker('pd-bday', p.birthday)}</div>
+      <div class="field"><span class="label">Birthday <span class="muted">(year optional)</span></span>${mdPicker('pd-bday', p.birthday, p.birthYear || '')}</div>
       <div class="field"><span class="label">Holidays ${esc(p.name)} gets gifts for</span>${holidayChips(p.holidays || [])}</div>
       <div class="sheet-foot"><button class="btn wide" id="pd-save">Save</button></div>`);
     $('#pd-save').onclick = async () => {
       const birthday = readMD('pd-bday');
+      const birthYear = readYear('pd-bday');
       const holidays = [...sheet.querySelectorAll('[name=hol]:checked')].map(x => x.value);
       closeSheet();
-      try { await API.savePersonDates(p.uid, { birthday: birthday || p.birthday || '', holidays }); toast('Saved'); } catch (e) { oops(e); }
+      try { await API.savePersonDates(p.uid, { birthday: birthday || p.birthday || '', birthYear, holidays }); toast('Saved'); } catch (e) { oops(e); }
     };
   }
 
@@ -874,7 +891,7 @@
         <div class="card">
           <h3 style="margin-bottom:14px">About you</h3>
           <div class="field"><label for="st-name">Name</label><input class="input" id="st-name" value="${esc(P.name || '')}"></div>
-          <div class="field"><span class="label">Birthday</span>${mdPicker('st-bday', P.birthday)}</div>
+          <div class="field"><span class="label">Birthday <span class="muted">(year optional)</span></span>${mdPicker('st-bday', P.birthday, P.birthYear || '')}</div>
           <div class="field"><span class="label">Anniversary <span class="muted">(optional)</span></span>${mdPicker('st-anni', P.anniversary)}</div>
           <div class="field"><label for="st-partner">Partner</label>
             <select class="input" id="st-partner"><option value="">—</option>${people().map(p => `<option value="${esc(p.uid)}" ${P.partner === p.uid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
@@ -941,6 +958,7 @@
         if (md || mEmpty) save(id === 'st-bday' ? { birthday: md } : { anniversary: md });
       };
     }));
+    $('#st-bday-y').onchange = () => save({ birthYear: readYear('st-bday') });
     $('#st-partner').onchange = e => save({ partner: e.target.value });
     view.querySelectorAll('[name=hol]').forEach(c => c.onchange = () => save({ holidays: [...view.querySelectorAll('[name=hol]:checked')].map(x => x.value) }));
     const presets = () => [...view.querySelectorAll('[name=remind]:checked')].map(x => Number(x.value));

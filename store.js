@@ -152,8 +152,8 @@ const Store = (() => {
     await batch.commit();
   }
   const saveProfile = patch => U(uid()).set(patch, { merge: true });
-  // Someone you're linked to: only their birthday + holidays (see firestore.rules).
-  const savePersonDates = (other, { birthday, holidays }) => U(other).update({ birthday, holidays });
+  // Someone you're linked to: only their birthday, birth year + holidays (see firestore.rules).
+  const savePersonDates = (other, { birthday, birthYear, holidays }) => U(other).update({ birthday, birthYear, holidays });
 
   async function newPersonalCode(custom) {
     const me = uid();

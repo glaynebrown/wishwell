@@ -4,6 +4,7 @@
 
    A person's profile keeps dates as month-day only ("03-14"), no year:
      birthday, anniversary   'MM-DD' or ''
+     birthYear               optional, e.g. 1996 -> "turning 30"
      holidays                ['christmas', 'mothers', ...]
      partner                 uid of the one person who sees anniversary + Valentine's
      custom                  [{ name: 'Graduation', md: '05-20' }] */
@@ -70,7 +71,11 @@ const Dates = (() => {
       out.push({ key, kind, name, emoji, date, days: daysBetween(t, date) });
     };
     if (!p) return out;
-    if (valid(p.birthday)) add('birthday', 'birthday', 'Birthday', '🎂', y => fromMD(p.birthday, y));
+    if (valid(p.birthday)) {
+      add('birthday', 'birthday', 'Birthday', '🎂', y => fromMD(p.birthday, y));
+      const by = Number(p.birthYear);
+      if (by > 1900) out[out.length - 1].turning = out[out.length - 1].date.getFullYear() - by;
+    }
     if (valid(p.anniversary)) add('anniversary', 'anniversary', 'Anniversary', '💍', y => fromMD(p.anniversary, y));
     for (const h of HOLIDAYS) if ((p.holidays || []).includes(h.key)) add(h.key, 'holiday', h.name, h.emoji, y => holidayOn(h.key, y));
     (p.custom || []).forEach((c, i) => { if (c && c.name && valid(c.md)) add('custom' + i, 'custom', c.name, '✨', y => fromMD(c.md, y)); });
@@ -97,10 +102,12 @@ const Dates = (() => {
   }
   // "Izzy's birthday" / "Christmas" / "Mom & Dad's anniversary"
   function title(ev, name) {
+    if (ev.kind === 'birthday' && ev.turning) return possessive(name) + ' ' + ordinal(ev.turning) + ' birthday';
     if (ev.kind === 'birthday' || ev.kind === 'anniversary') return possessive(name) + ' ' + ev.name.toLowerCase();
     if (ev.kind === 'custom') return possessive(name) + ' ' + ev.name;
     return ev.name;
   }
+  const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
   const possessive = n => (/s$/i.test(n) ? n + '’' : n + '’s');
 
   return { HOLIDAYS, PARTNER_ONLY, MONTHS, SHORT, today, events, fmt, fmtMD, inWords, title, possessive, valid, daysBetween };

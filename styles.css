@@ -239,7 +239,8 @@ main { max-width: 760px; margin: 0 auto; padding: 8px 20px 40px; }
 .codepill .icon { width: 14px; height: 14px; }
 .person-row { display: flex; align-items: center; gap: 12px; padding: 13px 0; text-decoration: none; color: inherit; }
 .pr-name { font-weight: 700; font-size: 18px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pr-next { color: var(--muted); font-size: 14px; white-space: nowrap; flex: none; }
+.pr-next { color: var(--muted); font-size: 14px; white-space: nowrap; flex: none; min-width: 74px; text-align: left; }
+.pr-age { color: var(--faint); font-size: 13.5px; white-space: nowrap; flex: none; margin-right: 2px; }
 .person-row + .person-row { border-top: 1px solid var(--line); }
 .person-main { flex: 1; min-width: 0; }
 .person-name { font-weight: 700; }
@@ -291,6 +292,7 @@ textarea.input { resize: vertical; min-height: 70px; }
 .row > * { min-width: 0; }
 .grow { flex: 1; }
 .md { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
+.md.with-year { grid-template-columns: 1.5fr 1fr 1.1fr; }
 .check-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .check-chips label { cursor: pointer; }
 .check-chips input { position: absolute; opacity: 0; pointer-events: none; }
