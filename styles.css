@@ -123,6 +123,9 @@ body.kid-mode .tabs { display: none; }
 main { max-width: 760px; margin: 0 auto; padding: 8px 20px 40px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 14px 0 18px; flex-wrap: wrap; }
 .page-head .sub { color: var(--muted); margin: 4px 0 0; font-size: 15px; }
+.list-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px; margin: 14px 0 16px; }
+.list-head .sub { color: var(--muted); margin: 0; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-head .sort-pick { justify-self: end; }
 .back { display: inline-flex; align-items: center; gap: 2px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 15px; margin: 8px 0 0 -6px; padding: 4px 6px; }
 .section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 30px 0 12px; }
 .section-title h2 { font-size: calc(20px * var(--head-scale)); }

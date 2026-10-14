@@ -396,10 +396,11 @@
     const items = sorted(S.items[S.me] || [], ui.sort);
     const n = people().length;
     view.innerHTML = `
-      <div class="page-head"><div><h1>My wish list</h1>
-        <p class="sub">${items.length ? `${items.length} wish${items.length === 1 ? '' : 'es'} · ` : ''}${n ? `${n} ${n === 1 ? 'person' : 'people'} can see it` : 'No one linked yet'}</p></div>
-        <button class="btn" id="add">${icon('plus')}Add a wish</button></div>
-      ${items.length ? `<div class="toolbar">${sortPick()}</div><div class="wishes">${items.map(ownerCard).join('')}</div>` : `
+      <div class="list-head">
+        <h1>My wish list</h1><button class="btn" id="add">${icon('plus')}Add a wish</button>
+        <p class="sub">${[items.length ? `${items.length} wish${items.length === 1 ? '' : 'es'}` : '', n ? '' : 'not shared yet'].filter(Boolean).join(' · ')}</p>${items.length > 1 ? sortPick() : ''}
+      </div>
+      ${items.length ? `<div class="wishes">${items.map(ownerCard).join('')}</div>` : `
         <div class="card empty"><svg class="mark"><use href="#i-mark"/></svg><h2>Your list is empty</h2>
         <p>Add something you’d love. Paste a store link and Wishwell fills in what it can.</p>
         <button class="btn" id="add2">${icon('plus')}Add your first wish</button></div>`}
