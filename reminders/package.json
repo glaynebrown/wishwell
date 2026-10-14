@@ -1,0 +1,8 @@
+{
+  "name": "wishwell-reminders",
+  "private": true,
+  "description": "Daily reminder notifications for Wishwell (run by GitHub Actions).",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}
