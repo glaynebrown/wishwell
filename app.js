@@ -25,7 +25,8 @@
   let S = null;
   let pending = false;
   let signUpName = '';
-  const ui = { sort: ls.get('ww-sort', 'star'), hideTaken: ls.get('ww-hide', '') === '1' };
+  // showTaken: claimed wishes are hidden on someone's list until you tap "show" (per visit)
+  const ui = { sort: ls.get('ww-sort', 'star'), showTaken: false };
 
   // ---------- small helpers ----------
   const money = n => (n == null || n === '' || isNaN(n) ? '' : '$' + (Math.round(n * 100) / 100).toFixed(n % 1 ? 2 : 0));
@@ -125,7 +126,7 @@
     view.innerHTML = '<p class="loading">Loading…</p>';
     API.start(s => { S = s; render(); });
   });
-  window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
+  window.addEventListener('hashchange', () => { ui.showTaken = false; render(); window.scrollTo(0, 0); });
   view.addEventListener('focusout', () => setTimeout(() => { if (pending && !typing()) render(); }, 0));
   const typing = () => view.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== 'checkbox';
 
@@ -286,15 +287,13 @@
   }
 
   // ---------- My list ----------
-  function sortBar(withHide) {
-    const opts = [['star', icon('star') + 'Really want'], ['low', 'Price ↑'], ['high', 'Price ↓'], ['new', 'Newest']];
-    return `<div class="toolbar"><div class="chips" role="group" aria-label="Sort">${opts.map(([k, l]) => `<button class="chip ${ui.sort === k ? 'on' : ''}" data-sort="${k}">${l}</button>`).join('')}</div>
-      ${withHide ? `<label class="switch"><input type="checkbox" id="hide-taken" ${ui.hideTaken ? 'checked' : ''}>Hide claimed</label>` : ''}</div>`;
+  function sortPick() {
+    const opts = [['star', 'Really want'], ['low', 'Lowest price'], ['high', 'Highest price'], ['new', 'Newest']];
+    return `<label class="sort-pick" title="Sort">${icon('sort')}<select id="sort" aria-label="Sort">${opts.map(([k, l]) => `<option value="${k}" ${ui.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
   }
   function wireSort() {
-    view.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { ui.sort = b.dataset.sort; ls.set('ww-sort', ui.sort); render(); });
-    const h = $('#hide-taken');
-    if (h) h.onchange = () => { ui.hideTaken = h.checked; ls.set('ww-hide', h.checked ? '1' : null); render(); };
+    const sel = $('#sort');
+    if (sel) sel.onchange = () => { ui.sort = sel.value; ls.set('ww-sort', ui.sort); sel.blur(); render(); };
   }
 
   function metaLine(e) {
@@ -324,7 +323,7 @@
       <div class="page-head"><div><h1>My wish list</h1>
         <p class="sub">${items.length ? `${items.length} wish${items.length === 1 ? '' : 'es'} · ` : ''}${n ? `${n} ${n === 1 ? 'person' : 'people'} can see it` : 'No one linked yet'}</p></div>
         <button class="btn" id="add">${icon('plus')}Add a wish</button></div>
-      ${items.length ? sortBar(false) + `<div class="wishes">${items.map(ownerCard).join('')}</div>` : `
+      ${items.length ? `<div class="toolbar">${sortPick()}</div><div class="wishes">${items.map(ownerCard).join('')}</div>` : `
         <div class="card empty"><svg class="mark"><use href="#i-mark"/></svg><h2>Your list is empty</h2>
         <p>Add something you’d love. Paste a store link and Wishwell fills in what it can.</p>
         <button class="btn" id="add2">${icon('plus')}Add your first wish</button></div>`}
@@ -727,8 +726,8 @@
     }
     const claimedFull = e => claimsOn(uid, e.id).length >= (e.qty || 1) && !claimsOn(uid, e.id).some(c => c.by === S.me);
     let items = sorted(S.items[uid] || [], ui.sort);
-    const hidden = ui.hideTaken ? items.filter(claimedFull).length : 0;
-    if (ui.hideTaken) items = items.filter(e => !claimedFull(e));
+    const taken = items.filter(claimedFull).length;
+    if (!ui.showTaken) items = items.filter(e => !claimedFull(e));
     const ideas = sorted(S.ideas[uid] || [], 'new');
     const groups = mySharedGroups(uid);
     const evs = Dates.events(p, undefined, S.me);
@@ -736,10 +735,9 @@
     view.innerHTML = `<a class="back" href="#/people">${icon('back')}People</a>
       <div class="person-head">${avatar(p, true)}<div><h1>${esc(p.name)}</h1><p class="sub muted" style="margin:2px 0 0">${esc(circleWords(uid))}</p></div></div>
       ${evs.length ? `<div class="event-chips">${evs.map(ev => `<span class="event-chip">${ev.emoji} <b>${esc(ev.kind === 'custom' ? ev.name : ev.name)}</b> · ${Dates.fmt(ev.date)} · ${Dates.inWords(ev.days)}</span>`).join('')}</div>` : '<div style="height:12px"></div>'}
-      <div class="section-title" style="margin-top:6px"><h2>${esc(Dates.possessive(p.name))} wishes</h2></div>
-      ${(S.items[uid] || []).length ? sortBar(true) : ''}
-      ${items.length ? `<div class="wishes">${items.map(e => giverCard(uid, e, 'item')).join('')}</div>` : `<div class="card empty" style="padding:28px 20px"><p style="margin:0">${(S.items[uid] || []).length ? 'Everything here has been claimed.' : `${esc(p.name)} hasn’t added any wishes yet.`}</p></div>`}
-      ${hidden ? `<p class="hint center">${hidden} claimed wish${hidden === 1 ? '' : 'es'} hidden</p>` : ''}
+      <div class="section-title" style="margin-top:6px;align-items:center"><h2>${esc(Dates.possessive(p.name))} wishes</h2>${(S.items[uid] || []).length > 1 ? sortPick() : ''}</div>
+      ${items.length ? `<div class="wishes">${items.map(e => giverCard(uid, e, 'item')).join('')}</div>` : `<div class="card empty" style="padding:28px 20px"><p style="margin:0">${(S.items[uid] || []).length ? 'Everything on this list has been claimed.' : `${esc(p.name)} hasn’t added any wishes yet.`}</p></div>`}
+      ${taken ? `<p class="center" style="margin:14px 0 0"><button class="linkbtn quiet-link" id="toggle-taken">${ui.showTaken ? 'Hide claimed' : `${taken} claimed — show`}</button></p>` : ''}
       <section class="secret">
         <div class="section-title"><h2>Gift ideas for ${esc(p.name)}</h2><button class="btn soft small" id="add-idea">${icon('plus')}Add</button></div>
         <p class="secret-note">${icon('lock')}<span>${whoSees}</span></p>
@@ -747,6 +745,8 @@
       </section>`;
     wireSort();
     wireGiving(uid);
+    const tt = $('#toggle-taken');
+    if (tt) tt.onclick = () => { ui.showTaken = !ui.showTaken; render(); };
     $('#add-idea').onclick = () => itemSheet({ owner: uid, kind: 'idea' });
   }
 
