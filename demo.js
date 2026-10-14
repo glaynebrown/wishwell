@@ -7,7 +7,7 @@
    Izzy claimed on her list. */
 
 const Demo = (() => {
-  const KEY = 'ww-demo2';
+  const KEY = 'ww-demo3';
   let db = null;
   let as = 'me';
   let cb = null;
@@ -31,13 +31,14 @@ const Demo = (() => {
         mom: { name: 'Mom', birthday: md(25), holidays: ['christmas', 'mothers', 'easter'], custom: [], remind: [21, 7], code: 'MOM234', groups: ['fam1'] },
         dad: { name: 'Dad', birthday: md(95), anniversary: md(160), holidays: ['christmas', 'fathers'], custom: [], remind: [21, 7], code: 'DAD234', groups: ['fam1'] },
         izzy: { name: 'Izzy', birthday: md(9), holidays: ['christmas', 'valentines'], custom: [], remind: [21, 7], code: 'IZZY23', groups: ['fam1'] },
+        leo: { name: 'Leo', birthday: md(70), birthYear: new Date().getFullYear() - 10, holidays: ['christmas'], custom: [], remind: [], kid: true, managers: ['me'], kidCode: 'LEOKID42', groups: ['fam1'] },
         jo: { name: 'Jo', birthday: md(58), holidays: ['christmas'], custom: [], remind: [7], code: 'JOJO45', groups: [] },
       },
-      groups: { fam1: { name: 'Brown Family', code: 'BROWNFAM', members: ['me', 'mom', 'dad', 'izzy'] } },
+      groups: { fam1: { name: 'Brown Family', code: 'BROWNFAM', members: ['me', 'mom', 'dad', 'izzy', 'leo'] } },
       links: { [pairId('me', 'jo')]: { users: ['jo', 'me'].sort() } },
       codes: {
         BELLA7: { type: 'person', uid: 'me' }, MOM234: { type: 'person', uid: 'mom' }, DAD234: { type: 'person', uid: 'dad' },
-        IZZY23: { type: 'person', uid: 'izzy' }, JOJO45: { type: 'person', uid: 'jo' }, BROWNFAM: { type: 'group', gid: 'fam1' },
+        IZZY23: { type: 'person', uid: 'izzy' }, JOJO45: { type: 'person', uid: 'jo' }, LEOKID42: { type: 'kid', by: 'me', gid: 'fam1', uid: 'leo' }, BROWNFAM: { type: 'group', gid: 'fam1' },
       },
       items: {
         me: [
@@ -60,6 +61,10 @@ const Demo = (() => {
           it('Lip Glowy Balm', { price: 18, store: 'Ulta', notes: 'Berry or Watermelon', star: true, photo: pic('💄', '#F1E0DE') }),
           it('Everywhere Belt Bag', { price: 38, store: 'Lululemon', notes: 'Black', photo: pic('👜', '#E6E1DA') }),
           it('Yoga mat strap', { price: 15, store: 'Amazon' }),
+        ],
+        leo: [
+          it('LEGO Minecraft set', { price: 40, store: 'Target', star: true, photo: pic('🧱', '#E3E8DA') }),
+          it('Soccer ball', { price: 20, notes: 'Size 4', photo: pic('⚽', '#ECE6DC') }),
         ],
         jo: [
           it('Pottery class gift card', { price: 60, store: 'Clay Studio', star: true, photo: pic('🏺', '#EEDFD2') }),
@@ -173,6 +178,7 @@ const Demo = (() => {
       const code = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       const c = db.codes[code];
       if (!c) return fail('That code didn’t match anyone. Check it and try again.');
+      if (c.type === 'kid') return fail('That’s a kid code — type it in on the kid’s phone, under “I have a kid code.”');
       if (c.type === 'person') {
         if (c.uid === as) return fail('That’s your own code — send it to someone else so they can link to you.');
         if (linked(as, c.uid)) return fail('You’re already linked with them.');
@@ -196,8 +202,29 @@ const Demo = (() => {
       return ok();
     },
     unlink(other) { delete db.links[pairId(as, other)]; emit(); return ok(); },
-    saveItem(item) { const id = item.id || newId(); upsert(list('items', as), { ...clone(item), id }); emit(); return ok(id); },
-    deleteItem(id) { db.items[as] = list('items', as).filter(x => x.id !== id); emit(); return ok(); },
+    saveItem(item, owner) { const o = owner || as; const id = item.id || newId(); upsert(list('items', o), { ...clone(item), id }); emit(); return ok(id); },
+    deleteItem(id, owner) { const o = owner || as; db.items[o] = list('items', o).filter(x => x.id !== id); emit(); return ok(); },
+    addKid({ name, birthday, birthYear, gid }) {
+      const code = makeCode() + makeCode().slice(0, 2);
+      const kid = newId();
+      db.users[kid] = { name, birthday: birthday || '', birthYear: birthYear || '', holidays: ['christmas'], custom: [], remind: [], kid: true, managers: [as], groups: [gid], kidCode: code };
+      db.codes[code] = { type: 'kid', by: as, gid, uid: kid };
+      db.groups[gid].members.push(kid);
+      emit();
+      return ok(code);
+    },
+    setKidAdult(kid) { db.users[kid].kid = false; emit(); return ok(); },
+    finishGrownUp() {
+      const u = db.users[as];
+      delete db.codes[u.kidCode];
+      delete u.kidCode;
+      u.code = makeCode();
+      db.codes[u.code] = { type: 'person', uid: as };
+      u.remind = [14, 7];
+      emit();
+      return ok();
+    },
+    kidSignIn() { return fail('Sample mode — use “View sample as” in Settings to try Leo’s view.'); },
     receiveItem(item) {
       list('received', as).push({ id: item.id, ...keep(item), fromUid: as, fromName: '', at: Date.now() });
       db.items[as] = list('items', as).filter(x => x.id !== item.id);

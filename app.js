@@ -142,13 +142,50 @@
     if (!S.profile) { renderSetup(); return; }
     applyPalette(S.profile.palette);
     applyFont(S.profile.font);
+    // A kid whose parent switched them to a grown-up account: set up their own login first.
+    if (S.profile.kid === false && S.profile.kidCode) { renderGrownUp(); return; }
     $('#top').hidden = false;
     const r = route();
     renderTabs(r.name);
-    const screens = { list: viewList, received: viewReceived, people: viewPeople, p: viewPerson, shopping: viewShopping, settings: viewSettings };
+    const screens = isKid()
+      ? { list: viewList, received: viewReceived, settings: viewSettings }
+      : { list: viewList, received: viewReceived, people: viewPeople, p: viewPerson, shopping: viewShopping, settings: viewSettings };
     (screens[r.name] || viewList)(r.arg);
     renderBanner();
     if (freshStart) { freshStart = false; window.scrollTo(0, 0); }
+  }
+
+  // Kid mode: just their own list (and a few settings).
+  const isKid = () => !!(S && S.profile && S.profile.kid);
+  const managedKids = () => people().filter(p => p.kid && (p.managers || []).includes(S.me));
+
+  function renderGrownUp() {
+    $('#top').hidden = true;
+    window.scrollTo(0, 0);
+    view.innerHTML = `<div class="welcome">
+      <svg class="brand-mark" aria-hidden="true"><use href="#i-mark"/></svg>
+      <h1>Your own login</h1>
+      <p class="tagline">You’ve got the full Wishwell now! Pick an email and password to sign in with from now on. Your list stays just as it is.</p>
+      <form class="card" id="gu">
+        <p class="err" id="gu-err" hidden></p>
+        <div class="field"><label for="gu-email">Email</label><input class="input" id="gu-email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="gu-pw">New password</label><input class="input" id="gu-pw" type="password" autocomplete="new-password" minlength="6" required></div>
+        <button class="btn wide" type="submit">Save</button>
+      </form>
+    </div>`;
+    $('#gu').onsubmit = async e => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button');
+      btn.disabled = true;
+      try {
+        await API.finishGrownUp($('#gu-email').value.trim(), $('#gu-pw').value);
+        tell('Almost done', 'Check your email and tap the link to confirm it. Until then, you can keep using Wishwell like normal.');
+      } catch (err) {
+        btn.disabled = false;
+        const er = $('#gu-err'); er.hidden = false;
+        er.textContent = /requires-recent-login/.test(err.code || '') ? 'Please sign out and back in with your kid code, then try again.' : niceAuth(err);
+      }
+    };
   }
 
   function applyFont(f) {
@@ -175,7 +212,8 @@
       ['shopping', 'bag', 'Shopping', mine],
     ];
     const cur = on === 'received' ? 'list' : on === 'p' ? 'people' : on;
-    $('#tabs').innerHTML = tabs.map(([k, ic, label, n]) =>
+    document.body.classList.toggle('kid-mode', isKid());
+    $('#tabs').innerHTML = isKid() ? '' : tabs.map(([k, ic, label, n]) =>
       `<a class="tab ${cur === k ? 'on' : ''}" href="#/${k}" ${cur === k ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span>${n ? `<span class="count">${n}</span>` : ''}</a>`).join('');
     $('#gear').classList.toggle('on', on === 'settings');
     // Tapping the gear again closes Settings and goes back to where you were.
@@ -201,6 +239,7 @@
     $('#top').hidden = true;
     window.scrollTo(0, 0);
     $('#banner').hidden = true;
+    if (mode === 'kid') { renderKidSignIn(msg); return; }
     const up = mode === 'up';
     view.innerHTML = `<div class="welcome">
       <svg class="brand-mark" aria-hidden="true"><use href="#i-mark"/></svg>
@@ -215,8 +254,10 @@
         ${up ? '' : `<p class="center small"><button type="button" class="linkbtn" id="a-forgot">Forgot password?</button></p>`}
       </form>
       <p class="center muted">${up ? 'Already have an account?' : 'New here?'} <button class="linkbtn" id="a-switch">${up ? 'Sign in' : 'Create an account'}</button></p>
+      <p class="center muted small" style="margin-top:18px"><button class="linkbtn" id="a-kid">I have a kid code</button></p>
     </div>`;
     $('#a-switch').onclick = () => renderWelcome(up ? 'in' : 'up');
+    $('#a-kid').onclick = () => renderWelcome('kid');
     const forgot = $('#a-forgot');
     if (forgot) forgot.onclick = async () => {
       const email = $('#a-email').value.trim();
@@ -233,6 +274,27 @@
         if (up) { signUpName = $('#a-name').value.trim(); await API.signUp(signUpName, email, pw); }
         else await API.signIn(email, pw);
       } catch (err) { renderWelcome(mode, niceAuth(err)); }
+    };
+  }
+  function renderKidSignIn(msg) {
+    view.innerHTML = `<div class="welcome">
+      <svg class="brand-mark" aria-hidden="true"><use href="#i-mark"/></svg>
+      <h1>Hi there!</h1>
+      <p class="tagline">Type in the code your grown-up gave you.</p>
+      <form class="card" id="kid">
+        ${msg ? `<p class="err">${esc(msg)}</p>` : ''}
+        <div class="field"><input class="input" id="k-code" autocapitalize="characters" autocomplete="off" aria-label="Kid code" placeholder="Kid code" style="font-size:22px;letter-spacing:.1em;text-transform:uppercase;text-align:center" required></div>
+        <button class="btn wide" type="submit">Let’s go</button>
+      </form>
+      <p class="center muted"><button class="linkbtn" id="k-back">Back to sign in</button></p>
+    </div>`;
+    setTimeout(() => $('#k-code').focus(), 60);
+    $('#k-back').onclick = () => renderWelcome('in');
+    $('#kid').onsubmit = async e => {
+      e.preventDefault();
+      e.target.querySelector('button').disabled = true;
+      try { await API.kidSignIn($('#k-code').value); }
+      catch (err) { renderKidSignIn(/invalid-credential|wrong-password|user-not-found|invalid-email/.test(err.code || '') ? 'That code didn’t work — check it with your grown-up.' : niceAuth(err)); }
     };
   }
   function niceAuth(e) {
@@ -393,7 +455,7 @@
     const canDelete = !!e.id && (!isIdea || e.by === S.me || groups.some(g => g.id === e.scope));
 
     openSheet(`
-      <div class="sheet-head"><h2>${e.id ? (isIdea ? 'Edit idea' : 'Edit wish') : (isIdea ? `Gift idea for ${esc(ownerName)}` : 'Add a wish')}</h2>
+      <div class="sheet-head"><h2>${e.id ? (isIdea ? 'Edit idea' : 'Edit wish') : (isIdea ? `Gift idea for ${esc(ownerName)}` : ctx.owner !== S.me ? `A wish for ${esc(S.people[ctx.owner].name)}` : 'Add a wish')}</h2>
         <button class="btn quiet" data-act="close">Cancel</button></div>
       ${isIdea ? `<div class="vis-pick" role="radiogroup" aria-label="Who can see this idea">${icon('lock')}
           ${groups.map(g => `<label><input type="radio" name="f-scope" value="${esc(g.id)}" ${scope === g.id ? 'checked' : ''}><span>${esc(g.name)}</span></label>`).join('')}
@@ -417,8 +479,9 @@
         <button class="star-toggle ${star ? 'on' : ''}" id="f-star" type="button">${icon('star')}Really want</button>
         <div class="row"><span class="label">How many</span><span class="stepper"><button type="button" id="f-minus" aria-label="Fewer">−</button><span id="f-qty">${qty}</span><button type="button" id="f-plus" aria-label="More">+</button></span></div>
       </div>`}
-      <div class="sheet-foot"><button class="btn wide" id="f-save">${e.id ? 'Save' : (isIdea ? 'Add idea' : 'Add to my list')}</button></div>
-      ${e.id && !isIdea ? `<div class="sheet-foot"><button class="btn soft wide" id="f-got">${icon('check')}I got this</button><button class="btn danger" id="f-del">Delete</button></div>` : ''}
+      <div class="sheet-foot"><button class="btn wide" id="f-save">${e.id ? 'Save' : (isIdea ? 'Add idea' : ctx.owner !== S.me ? 'Add to their list' : 'Add to my list')}</button></div>
+      ${e.id && !isIdea && ctx.owner === S.me ? `<div class="sheet-foot"><button class="btn soft wide" id="f-got">${icon('check')}I got this</button><button class="btn danger" id="f-del">Delete</button></div>` : ''}
+      ${e.id && !isIdea && ctx.owner !== S.me ? `<div class="sheet-foot"><button class="btn danger wide" id="f-del">Delete from ${esc(Dates.possessive(S.people[ctx.owner].name))} list</button></div>` : ''}
       ${e.id && isIdea && canDelete ? `<div class="sheet-foot"><button class="btn danger wide" id="f-del">Delete idea</button></div>` : ''}
     `);
 
@@ -486,10 +549,10 @@
         if (isIdea) {
           await API.saveIdea(ctx.owner, cleanEntry({ ...base, id: e.id, scope: (sheet.querySelector('[name=f-scope]:checked') || {}).value || 'me', by: e.by || S.me, byName: e.byName || myName(), at: e.at || Date.now() }), e.id ? e : null);
         } else {
-          await API.saveItem(cleanEntry({ ...base, id: e.id, star, qty, createdAt: e.createdAt || Date.now() }));
+          await API.saveItem(cleanEntry({ ...base, id: e.id, star, qty, createdAt: e.createdAt || Date.now() }), ctx.owner);
         }
         closeSheet();
-        toast(e.id ? 'Saved' : isIdea ? 'Idea added' : 'Added to your list');
+        toast(e.id ? 'Saved' : isIdea ? 'Idea added' : ctx.owner !== S.me ? 'Added' : 'Added to your list');
       } catch (err) { $('#f-save').disabled = false; oops(err); }
     };
     const got = $('#f-got');
@@ -501,7 +564,7 @@
     if (del) del.onclick = async () => {
       if (!(await ask(isIdea ? 'Delete this idea?' : 'Delete this wish?', 'It’s gone for everyone.', 'Delete', { danger: true }))) return;
       closeSheet();
-      try { if (isIdea) await API.deleteIdea(ctx.owner, e); else await API.deleteItem(e.id); toast('Deleted'); } catch (err) { oops(err); }
+      try { if (isIdea) await API.deleteIdea(ctx.owner, e); else await API.deleteItem(e.id, ctx.owner); toast('Deleted'); } catch (err) { oops(err); }
     };
   }
   function cleanEntry(o) {
@@ -695,6 +758,7 @@
       tags.push(`<span class="tag">${icon('lock')} ${esc(e.scope === 'me' ? 'Just you' : g ? g.name : 'Group')}</span>`);
     }
     const editable = kind === 'idea' && (e.by === S.me || S.groups.some(g => g.id === e.scope));
+    if (kind === 'item' && S.people[owner] && (S.people[owner].managers || []).includes(S.me)) acts = `<button class="btn quiet small" data-kidedit="${esc(e.id)}">Edit</button>` + acts;
     return `<article class="wish ${full && !mine ? 'taken' : ''} ${editable ? 'tap' : ''}" ${editable ? `data-editidea="${esc(e.id)}"` : ''}>
       <div class="wish-top">${thumb(e)}<div class="wish-body">
         <div class="wish-name">${esc(e.name || 'Untitled')}</div>${metaLine(e)}
@@ -755,6 +819,7 @@
       <p class="date-line">${evs.length ? evs.map(ev => `<span title="${esc(ev.name)} · ${Dates.inWords(ev.days)}">${ev.emoji} ${Dates.fmt(ev.date)}${ev.turning ? ` (turns ${ev.turning})` : ''}</span>`).join('<span aria-hidden="true">·</span>') : '<span>No dates yet</span>'}
         <button class="edit-btn" id="edit-dates" aria-label="${evs.length ? 'Edit dates' : 'Add dates'}">${icon(evs.length ? 'edit' : 'plus')}</button></p>
       <div class="section-title" style="margin-top:6px;align-items:center"><h2>${esc(Dates.possessive(p.name))} wishes</h2>${(S.items[uid] || []).length > 1 ? sortPick() : ''}</div>
+      ${(p.managers || []).includes(S.me) && p.kid ? `<p class="kid-manage">${icon('edit')}<span>You manage ${esc(Dates.possessive(p.name))} list.</span><button class="btn soft small" id="kid-add">${icon('plus')}Add a wish</button></p>` : ''}
       ${items.length ? `<div class="wishes">${items.map(e => giverCard(uid, e, 'item')).join('')}</div>` : `<div class="card empty" style="padding:28px 20px"><p style="margin:0">${(S.items[uid] || []).length ? 'Everything on this list has been claimed.' : `${esc(p.name)} hasn’t added any wishes yet.`}</p></div>`}
       ${taken ? `<p class="center" style="margin:14px 0 0"><button class="linkbtn quiet-link" id="toggle-taken">${ui.showTaken ? 'Hide claimed' : `${taken} claimed — show`}</button></p>` : ''}
       <section class="secret">
@@ -764,6 +829,12 @@
       </section>`;
     wireSort();
     wireGiving(uid);
+    if ($('#kid-add')) $('#kid-add').onclick = () => itemSheet({ owner: uid, kind: 'item' });
+    view.querySelectorAll('[data-kidedit]').forEach(b => b.onclick = ev => {
+      ev.stopPropagation();
+      const it = (S.items[uid] || []).find(x => x.id === b.dataset.kidedit);
+      if (it) itemSheet({ owner: uid, kind: 'item', entry: it });
+    });
     $('#edit-dates').onclick = () => datesSheet(p);
     const tt = $('#toggle-taken');
     if (tt) tt.onclick = () => { ui.showTaken = !ui.showTaken; render(); };
@@ -884,8 +955,10 @@
   const pushOn = () => !!ls.get('ww-push', '') && typeof Notification !== 'undefined' && Notification.permission === 'granted';
 
   function viewSettings() {
+    if (isKid()) { viewKidSettings(); return; }
     const P = S.profile;
     const custom = P.custom || [];
+    const kids = managedKids();
     view.innerHTML = `<div class="page-head"><div><h1>Settings</h1></div></div>
       <div class="settings"><div class="col">
         <div class="card">
@@ -930,6 +1003,15 @@
           ${S.links.length ? `<div class="field"><span class="label">Linked with you</span>
             ${S.links.map(l => { const o = l.users.find(u => u !== S.me); const p = S.people[o]; return `<div class="list-row"><span class="grow">${esc(p ? p.name : 'Someone')}</span><button class="btn quiet small" data-unlink="${esc(o)}">Unlink</button></div>`; }).join('')}</div>` : ''}
           <div class="row" style="flex-wrap:wrap"><button class="btn soft small" id="st-join">Enter a code</button><button class="btn ghost small" id="st-group">Start a family group</button></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:6px">Kids</h3>
+          <p class="hint" style="margin:0 0 12px">Kids get just their own wishlist, and sign in with a code instead of a password. You can add to or tidy their list from their page.</p>
+          ${kids.map(k => `<div class="group-row"><div class="group-meta">
+              <a class="group-name" href="#/p/${encodeURIComponent(k.uid)}">${esc(k.name)}</a>
+              <button class="codepill" data-kidcode="${esc(k.kidCode || '')}" data-kname="${esc(k.name)}" aria-label="Share ${esc(k.name)}’s kid code">${esc(k.kidCode || '')}${icon('copy')}</button>
+              <button class="btn quiet small" data-adult="${esc(k.uid)}" style="margin-left:auto">Switch to adult</button></div></div>`).join('')}
+          ${S.groups.length ? `<button class="btn ghost small" id="st-addkid" style="margin-top:${kids.length ? 10 : 0}px">${icon('plus')}Add a kid</button>` : '<p class="muted small" style="margin:0">Start or join a family group first.</p>'}
         </div>
         <div class="card">
           <h3 style="margin-bottom:6px">Reminders</h3>
@@ -1022,6 +1104,13 @@
     });
     $('#st-join').onclick = joinSheet;
     $('#st-group').onclick = groupSheet;
+    if ($('#st-addkid')) $('#st-addkid').onclick = kidSheet;
+    view.querySelectorAll('[data-kidcode]').forEach(b => b.onclick = () => shareKidCode(b.dataset.kidcode, b.dataset.kname));
+    view.querySelectorAll('[data-adult]').forEach(b => b.onclick = async () => {
+      const k = S.people[b.dataset.adult];
+      if (!(await ask(`Switch ${esc(k.name)} to adult view?`, `${esc(k.name)} will get the full app — family lists, shopping and gift ideas — and set up their own email and password next time they open Wishwell. This can’t be switched back.`, 'Switch'))) return;
+      API.setKidAdult(k.uid).then(() => toast(`${k.name} is all grown up 🎉`)).catch(oops);
+    });
     $('#st-push').onchange = e => (e.target.checked ? turnOnPush() : turnOffPush());
     if (SAMPLE) {
       $('#st-as').onchange = e => Demo.viewAs(e.target.value);
@@ -1049,6 +1138,61 @@
     };
     $('#pc-save').onclick = () => go($('#pc-code').value.trim());
     $('#pc-random').onclick = () => go('');
+  }
+
+  // ---------- kids ----------
+  function kidSheet() {
+    openSheet(`<div class="sheet-head"><h2>Add a kid</h2><button class="btn quiet" data-act="close">Cancel</button></div>
+      <input class="input" id="kd-name" aria-label="Name" placeholder="Their name">
+      <div class="field tight"><span class="label">Birthday <span class="muted">(year optional)</span></span>${mdPicker('kd-bday', '', '')}</div>
+      ${S.groups.length > 1 ? `<div class="field"><label for="kd-group">Family group</label><select class="input" id="kd-group">${S.groups.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')}</select></div>` : ''}
+      <p class="err" id="kd-err" hidden></p>
+      <div class="sheet-foot"><button class="btn wide" id="kd-go">Add</button></div>`);
+    setTimeout(() => $('#kd-name').focus(), 60);
+    $('#kd-go').onclick = async () => {
+      const name = $('#kd-name').value.trim();
+      if (!name) { toast('Add their name'); return; }
+      const gid = $('#kd-group') ? $('#kd-group').value : S.groups[0].id;
+      $('#kd-go').disabled = true;
+      try {
+        const code = await API.addKid({ name, birthday: readMD('kd-bday'), birthYear: readYear('kd-bday'), gid });
+        openSheet(`<div class="sheet-head"><h2>${esc(name)} is in! 🎉</h2><button class="btn quiet" data-act="close">Done</button></div>
+          <p class="muted">On ${esc(Dates.possessive(name))} phone: open Wishwell, tap <b>I have a kid code</b>, and type this in. It works on any phone, any time.</p>
+          <div class="mycode"><span class="code">${esc(code)}</span><button class="btn small" id="kd-share" style="margin-left:auto">${icon('copy')}Share</button></div>`);
+        $('#kd-share').onclick = () => shareKidCode(code, name);
+      } catch (e) { $('#kd-go').disabled = false; const er = $('#kd-err'); er.hidden = false; er.textContent = e.message || 'That didn’t work.'; }
+    };
+  }
+  async function shareKidCode(code, name) {
+    const text = `${Dates.possessive(name)} Wishwell kid code: ${code}\nOpen ${appURL()} and tap “I have a kid code.”`;
+    if (navigator.share) { try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(text); toast('Copied'); } catch (e) { tell('Kid code', esc(code)); }
+  }
+  // Kids' settings: their name and how the app looks.
+  function viewKidSettings() {
+    const P = S.profile;
+    view.innerHTML = `<div class="page-head"><div><h1>Settings</h1></div></div>
+      <div class="settings"><div class="col">
+        <div class="card"><div class="field"><label for="st-name">Your name</label><input class="input" id="st-name" value="${esc(P.name || '')}"></div></div>
+        <div class="card"><h3 style="margin-bottom:14px">Fonts</h3>
+          <div class="fonts">${FONTS.map(f => `<button class="fontopt ${(P.font || 'classic') === f.key ? 'on' : ''}" data-font="${f.key}">
+            <span class="aa" style="font-family:${f.head};font-weight:${f.w};font-size:${Math.round(24 * f.scale)}px">Wishwell</span>
+            <small style="font-family:${f.body}">${f.name}</small></button>`).join('')}</div></div>
+      </div><div class="col">
+        <div class="card"><h3 style="margin-bottom:14px">Colors</h3>
+          <div class="palettes">${PALETTES.map(p => `<button class="pal ${(P.palette || 'sage') === p.key ? 'on' : ''}" data-pal="${p.key}"><span class="sw">${p.sw.map(c => `<i style="background:${c}"></i>`).join('')}</span><b>${p.name}</b></button>`).join('')}</div></div>
+        <div class="card">
+          ${SAMPLE ? `<div class="field"><label for="st-as">View sample as</label><select class="input" id="st-as">${Demo.people().map(x => `<option value="${x.uid}" ${x.uid === S.me ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>`
+            : '<button class="btn ghost small" id="st-out">Sign out</button>'}
+        </div>
+      </div></div>`;
+    const save = patch => API.saveProfile(patch).catch(oops);
+    $('#st-name').onchange = e => { const v = e.target.value.trim(); if (v) save({ name: v }); };
+    loadAllFonts();
+    view.querySelectorAll('[data-font]').forEach(b => b.onclick = () => { applyFont(b.dataset.font); save({ font: b.dataset.font }); });
+    view.querySelectorAll('[data-pal]').forEach(b => b.onclick = () => { applyPalette(b.dataset.pal); save({ palette: b.dataset.pal }); });
+    if (SAMPLE) $('#st-as').onchange = e => Demo.viewAs(e.target.value);
+    else $('#st-out').onclick = () => API.signOut();
   }
 
   // ---------- phone notifications ----------

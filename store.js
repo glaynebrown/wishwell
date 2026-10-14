@@ -3,6 +3,7 @@
 
    Firestore layout:
      users/{uid}                   profile: name, birthday, anniversary, holidays, custom,
+                                   kid + managers [parent uids] + kidCode for kid accounts,
                                    remind [days], palette, code (personal), groups [group ids]
      users/{uid}/items/{id}        their wishes (they and everyone linked to them can read)
      users/{uid}/claims/{ref_by}   "I'll get this" -- everyone linked EXCEPT the owner
@@ -13,7 +14,8 @@
      users/{uid}/received/{id}     given/received history -- owner only
      users/{uid}/private/push      phone notification tokens -- owner only
      groups/{id}                   a family group: { name, code, members [uids] }
-     codes/{code}                  { type: 'person', uid } or { type: 'group', gid }
+     codes/{code}                  { type: 'person', uid }, { type: 'group', gid },
+                                   or { type: 'kid', by (parent), gid, uid (kid) }
      links/{uidA_uidB}             a one-to-one connection made with a personal code
 
    firestore.rules is what actually keeps the surprises hidden. */
@@ -204,6 +206,7 @@ const Store = (() => {
     const snap = await db.collection('codes').doc(code).get();
     if (!snap.exists) throw new Error('That code didn’t match anyone. Check it and try again.');
     const c = snap.data();
+    if (c.type === 'kid') throw new Error('That’s a kid code — type it in on the kid’s phone, under “I have a kid code.”');
     if (c.type === 'person') {
       if (c.uid === me) throw new Error('That’s your own code — send it to someone else so they can link to you.');
       if (S.links.some(l => l.users.includes(c.uid))) throw new Error('You’re already linked with them.');
@@ -236,12 +239,14 @@ const Store = (() => {
   const unlink = other => db.collection('links').doc(pairId(uid(), other)).delete();
 
   // ---- my wishes ----
-  function saveItem(item) {
+  // owner: yourself, or a kid you manage
+  function saveItem(item, owner) {
     const { id, ...rest } = item;
-    const ref = id ? U(uid()).collection('items').doc(id) : U(uid()).collection('items').doc();
+    const col = U(owner || uid()).collection('items');
+    const ref = id ? col.doc(id) : col.doc();
     return ref.set(rest).then(() => ref.id);
   }
-  const deleteItem = id => U(uid()).collection('items').doc(id).delete();
+  const deleteItem = (id, owner) => U(owner || uid()).collection('items').doc(id).delete();
   // "I got this" -- off the list, into Received.
   function receiveItem(item) {
     const me = uid();
@@ -300,6 +305,58 @@ const Store = (() => {
     return out;
   }
 
+  // ---- kids ----
+  // A kid signs in with just a code. Behind the scenes that's an ordinary
+  // email/password account (a made-up address nobody emails) whose password
+  // comes from the code, so the same code works on any phone.
+  const kidEmail = code => cleanCode(code).toLowerCase() + '@kids.wishwell.invalid';
+  const kidPassword = code => cleanCode(code) + '#wishwell-kid';
+  const kidSignIn = code => auth.signInWithEmailAndPassword(kidEmail(code), kidPassword(code));
+
+  // A parent adds a kid to one of their family groups. Uses a second, separate
+  // Firebase connection so the parent stays signed in. -> the kid's code
+  async function addKid({ name, birthday, birthYear, gid }) {
+    const me = uid();
+    let code = makeCode() + makeCode().slice(0, 2);
+    while ((await db.collection('codes').doc(code).get()).exists) code = makeCode() + makeCode().slice(0, 2);
+    const app2 = firebase.initializeApp(firebaseConfig, 'kid-' + Date.now());
+    try {
+      const auth2 = app2.auth();
+      await auth2.setPersistence(firebase.auth.Auth.Persistence.NONE);
+      const cred = await auth2.createUserWithEmailAndPassword(kidEmail(code), kidPassword(code));
+      const kidUid = cred.user.uid;
+      await db.collection('codes').doc(code).set({ type: 'kid', by: me, gid, uid: kidUid });
+      const db2 = app2.firestore();
+      const batch = db2.batch();
+      batch.set(db2.collection('users').doc(kidUid), {
+        name, birthday: birthday || '', birthYear: birthYear || '', holidays: ['christmas'], custom: [],
+        remind: [], palette: 'sage', kid: true, managers: [me], groups: [gid], kidCode: code, createdAt: Date.now(),
+      });
+      batch.update(db2.collection('groups').doc(gid), { members: FV.arrayUnion(kidUid), joinKid: code });
+      await batch.commit();
+      await auth2.signOut();
+      return code;
+    } finally {
+      app2.delete().catch(() => {});
+    }
+  }
+  // Parent flips a kid to a regular (grown-up) account.
+  const setKidAdult = kidUid => U(kidUid).update({ kid: false });
+  // On the kid's phone after that: their own email + password.
+  async function finishGrownUp(email, password) {
+    const u = auth.currentUser;
+    const me = u.uid;
+    const old = S.profile && S.profile.kidCode;
+    await u.updatePassword(password);
+    await u.verifyBeforeUpdateEmail(email);
+    const code = makeCode();
+    const batch = db.batch();
+    batch.set(db.collection('codes').doc(code), { type: 'person', uid: me });
+    if (old) batch.delete(db.collection('codes').doc(old));
+    batch.update(U(me), { code, kidCode: FV.delete(), remind: [14, 7] });
+    await batch.commit();
+  }
+
   // ---- phone notifications ----
   const addToken = token => U(uid()).collection('private').doc('push').set({ tokens: FV.arrayUnion(token) }, { merge: true });
   const removeToken = token => U(uid()).collection('private').doc('push').set({ tokens: FV.arrayRemove(token) }, { merge: true });
@@ -332,7 +389,7 @@ const Store = (() => {
   return {
     configured: true, onUser, signUp, signIn, reset, signOut, start, stop, createProfile, saveProfile, savePersonDates,
     newPersonalCode, createGroup, renameGroup, changeGroupCode, join, leaveGroup, unlink, saveItem, deleteItem, receiveItem,
-    deleteReceived, claim, unclaim, setBought, given, saveIdea, deleteIdea, addToken, removeToken, deleteAccount,
+    deleteReceived, claim, unclaim, setBought, given, kidSignIn, addKid, setKidAdult, finishGrownUp, saveIdea, deleteIdea, addToken, removeToken, deleteAccount,
     uid,
   };
 })();

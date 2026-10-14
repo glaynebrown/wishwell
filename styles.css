@@ -116,6 +116,8 @@ input, select, textarea { font: inherit; font-size: 16px; color: var(--ink); }
   .tab .count { position: absolute; top: 0; left: calc(50% + 6px); font-size: 10.5px; line-height: 16px; padding: 0 5px; }
 }
 @media (min-width: 760px) { body { padding-bottom: 40px; } }
+body.kid-mode { padding-bottom: 40px; }
+body.kid-mode .tabs { display: none; }
 
 /* ---------- page ---------- */
 main { max-width: 760px; margin: 0 auto; padding: 8px 20px 40px; }
@@ -250,6 +252,9 @@ main { max-width: 760px; margin: 0 auto; padding: 8px 20px 40px; }
 .person-head { display: flex; align-items: center; gap: 16px; margin: 12px 0 6px; }
 .date-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 14.5px; margin: 8px 0 22px; }
 .date-line .edit-btn { margin-left: 0; }
+.kid-manage { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; margin: -4px 0 14px; }
+.kid-manage .icon { width: 15px; height: 15px; }
+.kid-manage .btn { margin-left: auto; }
 
 .secret {
   margin-top: 34px; border-radius: 22px; padding: 18px;
