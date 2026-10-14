@@ -25,6 +25,7 @@
   let S = null;
   let pending = false;
   let signUpName = '';
+  let lastPage = '#/list';
   // showTaken: claimed wishes are hidden on someone's list until you tap "show" (per visit)
   const ui = { sort: ls.get('ww-sort', 'star'), showTaken: false };
 
@@ -180,6 +181,12 @@
     $('#tabs').innerHTML = tabs.map(([k, ic, label, n]) =>
       `<a class="tab ${cur === k ? 'on' : ''}" href="#/${k}" ${cur === k ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span>${n ? `<span class="count">${n}</span>` : ''}</a>`).join('');
     $('#gear').classList.toggle('on', on === 'settings');
+    // Tapping the gear again closes Settings and goes back to where you were.
+    $('#gear').onclick = e => {
+      if (route().name !== 'settings') { lastPage = location.hash || '#/list'; return; }
+      e.preventDefault();
+      location.hash = lastPage && !/settings/.test(lastPage) ? lastPage : '#/list';
+    };
   }
 
   function renderBanner() {
@@ -251,7 +258,7 @@
       <form class="card" id="setup">
         <div class="field"><label for="s-name">Your name</label><input class="input" id="s-name" value="${esc(signUpName || user.name || '')}" required></div>
         <div class="field"><span class="label">Your birthday</span>${mdPicker('s-bday', '')}</div>
-        <div class="field"><span class="label">Holidays you celebrate with gifts</span>${holidayChips(['christmas'])}
+        <div class="field"><span class="label">Holidays you <i>get</i> gifts for</span>${holidayChips(['christmas'])}
           <p class="hint" style="margin-top:2px">You can change these, add an anniversary, or add other occasions (like a graduation) anytime in Settings.</p></div>
         <button class="btn wide" type="submit">Continue</button>
       </form>
@@ -734,7 +741,8 @@
     const whoSees = groups.length ? `Only ${groups.map(g => esc(g.name)).join(' and ')} can see these — never ${esc(p.name)}.` : `Only you can see ideas you add here — ${esc(p.name)} can’t.`;
     view.innerHTML = `<a class="back" href="#/people">${icon('back')}People</a>
       <div class="person-head">${avatar(p, true)}<div><h1>${esc(p.name)}</h1><p class="sub muted" style="margin:2px 0 0">${esc(circleWords(uid))}</p></div></div>
-      ${evs.length ? `<div class="event-tiles">${evs.map(ev => `<div class="event-tile ${ev.days <= 14 ? 'soon' : ''}"><span class="et-emoji">${ev.emoji}</span><span class="et-name">${esc(ev.name)}</span><span class="et-date">${Dates.fmt(ev.date)}</span><span class="et-when">${Dates.inWords(ev.days)}</span></div>`).join('')}</div>` : '<div style="height:12px"></div>'}
+      <div class="event-tiles">${evs.map(ev => `<div class="event-tile ${ev.days <= 14 ? 'soon' : ''}"><span class="et-emoji">${ev.emoji}</span><span class="et-name">${esc(ev.name)}</span><span class="et-date">${Dates.fmt(ev.date)}</span><span class="et-when">${Dates.inWords(ev.days)}</span></div>`).join('')}
+        <button class="event-tile add" id="edit-dates">${icon(evs.length ? 'edit' : 'plus')}<span class="et-name">${evs.length ? 'Edit dates' : 'Add dates'}</span></button></div>
       <div class="section-title" style="margin-top:6px;align-items:center"><h2>${esc(Dates.possessive(p.name))} wishes</h2>${(S.items[uid] || []).length > 1 ? sortPick() : ''}</div>
       ${items.length ? `<div class="wishes">${items.map(e => giverCard(uid, e, 'item')).join('')}</div>` : `<div class="card empty" style="padding:28px 20px"><p style="margin:0">${(S.items[uid] || []).length ? 'Everything on this list has been claimed.' : `${esc(p.name)} hasn’t added any wishes yet.`}</p></div>`}
       ${taken ? `<p class="center" style="margin:14px 0 0"><button class="linkbtn quiet-link" id="toggle-taken">${ui.showTaken ? 'Hide claimed' : `${taken} claimed — show`}</button></p>` : ''}
@@ -745,9 +753,25 @@
       </section>`;
     wireSort();
     wireGiving(uid);
+    $('#edit-dates').onclick = () => datesSheet(p);
     const tt = $('#toggle-taken');
     if (tt) tt.onclick = () => { ui.showTaken = !ui.showTaken; render(); };
     $('#add-idea').onclick = () => itemSheet({ owner: uid, kind: 'idea' });
+  }
+
+  // Set someone's birthday / holidays for them (handy if they never open Settings).
+  function datesSheet(p) {
+    openSheet(`<div class="sheet-head"><h2>${esc(Dates.possessive(p.name))} dates</h2><button class="btn quiet" data-act="close">Cancel</button></div>
+      <p class="hint" style="margin:-8px 0 14px">This updates ${esc(p.name)}’s own settings, so everyone linked to them sees it — and they can change it too.</p>
+      <div class="field"><span class="label">Birthday</span>${mdPicker('pd-bday', p.birthday)}</div>
+      <div class="field"><span class="label">Holidays ${esc(p.name)} gets gifts for</span>${holidayChips(p.holidays || [])}</div>
+      <div class="sheet-foot"><button class="btn wide" id="pd-save">Save</button></div>`);
+    $('#pd-save').onclick = async () => {
+      const birthday = readMD('pd-bday');
+      const holidays = [...sheet.querySelectorAll('[name=hol]:checked')].map(x => x.value);
+      closeSheet();
+      try { await API.savePersonDates(p.uid, { birthday: birthday || p.birthday || '', holidays }); toast('Saved'); } catch (e) { oops(e); }
+    };
   }
 
   // ---------- Shopping ----------
@@ -846,7 +870,8 @@
           <div class="field"><label for="st-partner">Partner</label>
             <select class="input" id="st-partner"><option value="">No one</option>${people().map(p => `<option value="${esc(p.uid)}" ${P.partner === p.uid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
             <p class="hint" style="margin:0">Only your partner sees your anniversary and Valentine’s Day and gets reminders for them.</p></div>
-          <div class="field"><span class="label">Holidays you celebrate with gifts</span>${holidayChips(P.holidays || [])}</div>
+          <div class="field"><span class="label">Holidays you <i>get</i> gifts for</span>${holidayChips(P.holidays || [])}
+            <p class="hint" style="margin:0">Only the ones where people shop for <b>you</b> — your family can see these on your list.</p></div>
           <div class="field"><span class="label">Other occasions</span>
             ${custom.map((c, i) => `<div class="list-row"><span class="grow">✨ ${esc(c.name)} · ${Dates.fmtMD(c.md)}</span><button class="btn quiet small" data-rmcustom="${i}">Remove</button></div>`).join('')}
             <button class="btn ghost small" id="st-addcustom" style="justify-self:start">${icon('plus')}Add an occasion</button></div>

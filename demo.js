@@ -133,6 +133,7 @@ const Demo = (() => {
     stop() { cb = null; },
     createProfile(p) { db.users[as] = { ...p, code: makeCode(), groups: [] }; emit(); return ok(); },
     saveProfile(patch) { Object.assign(db.users[as], clone(patch)); emit(); return ok(); },
+    savePersonDates(other, d) { Object.assign(db.users[other], clone(d)); emit(); return ok(); },
     newPersonalCode(custom) {
       const code = custom ? custom.toUpperCase().replace(/[^A-Z0-9]/g, '') : makeCode();
       if (code.length < 3 || code.length > 20) return fail('Codes need 3 to 20 letters or numbers.');

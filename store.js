@@ -152,6 +152,8 @@ const Store = (() => {
     await batch.commit();
   }
   const saveProfile = patch => U(uid()).set(patch, { merge: true });
+  // Someone you're linked to: only their birthday + holidays (see firestore.rules).
+  const savePersonDates = (other, { birthday, holidays }) => U(other).update({ birthday, holidays });
 
   async function newPersonalCode(custom) {
     const me = uid();
@@ -327,7 +329,7 @@ const Store = (() => {
   }
 
   return {
-    configured: true, onUser, signUp, signIn, reset, signOut, start, stop, createProfile, saveProfile,
+    configured: true, onUser, signUp, signIn, reset, signOut, start, stop, createProfile, saveProfile, savePersonDates,
     newPersonalCode, createGroup, renameGroup, changeGroupCode, join, leaveGroup, unlink, saveItem, deleteItem, receiveItem,
     deleteReceived, claim, unclaim, given, saveIdea, deleteIdea, addToken, removeToken, deleteAccount,
     uid,
