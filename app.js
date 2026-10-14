@@ -242,7 +242,8 @@
       <form class="card" id="setup">
         <div class="field"><label for="s-name">Your name</label><input class="input" id="s-name" value="${esc(signUpName || user.name || '')}" required></div>
         <div class="field"><span class="label">Your birthday</span>${mdPicker('s-bday', '')}</div>
-        <div class="field"><span class="label">Holidays you celebrate with gifts</span>${holidayChips(['christmas'])}</div>
+        <div class="field"><span class="label">Holidays you celebrate with gifts</span>${holidayChips(['christmas'])}
+          <p class="hint" style="margin-top:2px">You can change these, add an anniversary, or add other occasions (like a graduation) anytime in Settings.</p></div>
         <button class="btn wide" type="submit">Continue</button>
       </form>
     </div>`;
