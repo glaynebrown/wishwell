@@ -15,13 +15,16 @@
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap">
+<link id="fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap">
 <link rel="stylesheet" href="styles.css">
 <script>
-  // Put the last-used colors on before anything draws.
+  // Put the last-used colors and fonts on before anything draws.
+  var WW_FONTS = {"classic": "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap", "elegant": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lato:wght@400;700&display=swap", "modern": "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap", "cozy": "https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap"};
   try {
     var p = localStorage.getItem('ww-palette');
     if (p) document.documentElement.dataset.palette = p;
+    var f = localStorage.getItem('ww-font');
+    if (f && WW_FONTS[f]) { document.documentElement.dataset.font = f; document.getElementById('fonts').href = WW_FONTS[f]; }
   } catch (e) {}
 </script>
 </head>

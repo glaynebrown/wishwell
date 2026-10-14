@@ -143,6 +143,7 @@
     if (!S.loaded) { view.innerHTML = '<p class="loading">Loading…</p>'; return; }
     if (!S.profile) { renderSetup(); return; }
     applyPalette(S.profile.palette);
+    applyFont(S.profile.font);
     $('#top').hidden = false;
     const r = route();
     renderTabs(r.name);
@@ -151,6 +152,13 @@
     renderBanner();
   }
 
+  function applyFont(f) {
+    f = window.WW_FONTS && window.WW_FONTS[f] ? f : 'classic';
+    document.documentElement.dataset.font = f;
+    ls.set('ww-font', f);
+    const link = document.getElementById('fonts');
+    if (link && window.WW_FONTS && link.href !== window.WW_FONTS[f]) link.href = window.WW_FONTS[f];
+  }
   function applyPalette(p) {
     p = p || 'sage';
     document.documentElement.dataset.palette = p;
@@ -568,9 +576,9 @@
       ${friends.length ? `<div class="section-title"><h2>Friends</h2><span class="hint">Linked just with you</span></div><div class="card">${friends.map(personRow).join('')}</div>` : ''}
       ${nobody ? `<div class="card empty"><svg class="mark"><use href="#i-mark"/></svg><h2>Bring your people in</h2>
         <p>Start a family group and share its code, or enter a code someone sent you.</p></div>` : ''}
-      <div class="row" style="flex-wrap:wrap;margin-top:22px;gap:8px">
+      <div class="btn-row">
         <button class="btn" id="join">Enter a code</button>
-        <button class="btn soft" id="newgroup">Start a family group</button>
+        <button class="btn soft" id="newgroup">Start a group</button>
         <button class="btn ghost" id="sharemine">Share my code</button>
       </div>
       <p class="hint" style="margin-top:12px">A <b>family code</b> lets everyone in the group see each other’s lists. <b>Your code</b> shares just your list with one person — like a friend — and theirs with you.</p>`;
@@ -804,6 +812,23 @@
     { key: 'blue', name: 'Dusty blue & linen', sw: ['#F4F1EB', '#E0E8EE', '#7F9BB0', '#4E6A7F'] },
     { key: 'blush', name: 'Blush & warm gray', sw: ['#F7F2EF', '#F3E3DE', '#CF9F96', '#A26C64'] },
   ];
+  const FONTS = [
+    { key: 'classic', name: 'Classic', head: "'Fraunces', serif", body: "'Nunito Sans', sans-serif", w: 500, scale: 1 },
+    { key: 'elegant', name: 'Elegant', head: "'Cormorant Garamond', serif", body: "'Lato', sans-serif", w: 600, scale: 1.15 },
+    { key: 'modern', name: 'Modern', head: "'Outfit', sans-serif", body: "'Outfit', sans-serif", w: 600, scale: 0.95 },
+    { key: 'cozy', name: 'Handwritten', head: "'Caveat', cursive", body: "'Nunito Sans', sans-serif", w: 600, scale: 1.3 },
+  ];
+  // Load every font once Settings opens, so each choice previews in its own style.
+  function loadAllFonts() {
+    if (document.getElementById('fonts-all')) return;
+    const l = document.createElement('link');
+    l.id = 'fonts-all';
+    l.rel = 'stylesheet';
+    const fams = new Set();
+    Object.values(window.WW_FONTS || {}).forEach(u => u.split('?')[1].split('&').filter(x => x.startsWith('family=')).forEach(x => fams.add(x)));
+    l.href = 'https://fonts.googleapis.com/css2?' + [...fams].join('&') + '&display=swap';
+    document.head.appendChild(l);
+  }
   const REMIND = [[14, '2 wks'], [7, '1 wk'], [3, '3 days']];
   const customRemind = P => (P.remind || []).find(d => !REMIND.some(([x]) => x === d));
   const pushOn = () => !!ls.get('ww-push', '') && typeof Notification !== 'undefined' && Notification.permission === 'granted';
@@ -823,6 +848,12 @@
             ${custom.map((c, i) => `<div class="list-row"><span class="grow">✨ ${esc(c.name)} · ${Dates.fmtMD(c.md)}</span><button class="btn quiet small" data-rmcustom="${i}">Remove</button></div>`).join('')}
             <button class="btn ghost small" id="st-addcustom" style="justify-self:start">${icon('plus')}Add an occasion</button></div>
           <p class="hint">People linked to you see these dates and get reminders before them.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:14px">Fonts</h3>
+          <div class="fonts">${FONTS.map(f => `<button class="fontopt ${(P.font || 'classic') === f.key ? 'on' : ''}" data-font="${f.key}">
+            <span class="aa" style="font-family:${f.head};font-weight:${f.w};font-size:${Math.round(24 * f.scale)}px">Wishwell</span>
+            <small style="font-family:${f.body}">${f.name}</small></button>`).join('')}</div>
         </div>
         <div class="card">
           <h3 style="margin-bottom:14px">Colors</h3>
@@ -908,6 +939,8 @@
       };
     };
     view.querySelectorAll('[data-pal]').forEach(b => b.onclick = () => { applyPalette(b.dataset.pal); save({ palette: b.dataset.pal }); });
+    loadAllFonts();
+    view.querySelectorAll('[data-font]').forEach(b => b.onclick = () => { applyFont(b.dataset.font); save({ font: b.dataset.font }); });
     $('#st-share').onclick = () => shareCode(P.code, 'person');
     $('#st-newcode').onclick = () => codeSheet('Change my code', P.code,
       'Your old code stops working. People already linked with you stay linked.', c => API.newPersonalCode(c));
