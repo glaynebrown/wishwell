@@ -36,14 +36,6 @@
   const people = () => Object.values(S.people).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   const nameOf = uid => (uid === S.me ? 'You' : (S.people[uid] && S.people[uid].name) || '');
   const first = s => (s || '?').trim().charAt(0).toUpperCase();
-  const avatar = (p, big) => `<span class="avatar ${big ? 'big' : ''}" style="${tint(p.uid)}">${esc(first(p.name))}</span>`;
-  function tint(uid) {
-    // a gentle, steady color per person, mixed from the palette
-    let h = 0;
-    for (const c of String(uid)) h = (h * 31 + c.charCodeAt(0)) % 360;
-    const mix = [18, 30, 42][h % 3];
-    return `background: color-mix(in srgb, hsl(${h} 35% 70%) ${mix}%, var(--softer)); color: color-mix(in srgb, hsl(${h} 30% 35%) 60%, var(--ink));`;
-  }
   const mySharedGroups = uid => S.groups.filter(g => (S.profile.groups || []).includes(g.id) && (g.members || []).includes(uid));
   const isLinked = uid => S.links.some(l => l.users.includes(uid));
   const claimsOn = (owner, ref) => (S.claims[owner] || []).filter(c => c.ref === ref);
@@ -534,16 +526,16 @@
   }
 
   // ---------- People ----------
-  function upcoming(horizon) {
+  // Birthdays + anniversaries (partner only) in the next 30 days, holidays in the
+  // next 60, soonest first. A holiday is one row however many people it's for.
+  function upcoming() {
     const rows = [];
     const hol = {};
     for (const p of people()) {
       for (const ev of Dates.events(p, undefined, S.me)) {
-        if (ev.days > horizon) continue;
-        if (ev.kind === 'holiday') {
-          const h = hol[ev.key] = hol[ev.key] || { ev, people: [] };
-          h.people.push(p);
-        } else rows.push({ ev, p });
+        if (ev.kind === 'custom' || ev.days > (ev.kind === 'holiday' ? 60 : 30)) continue;
+        if (ev.kind === 'holiday') hol[ev.key] = hol[ev.key] || { ev, people: [] };
+        else rows.push({ ev, p });
       }
     }
     Object.values(hol).forEach(h => rows.push(h));
@@ -559,15 +551,15 @@
       <span class="up-main"><span class="up-title">${esc(r.ev.name)}</span><br><span class="up-sub">${Dates.fmt(r.ev.date, true)}</span></span>${when}</div>`;
   }
   function personRow(p) {
-    const ev = nextEvent(p);
-    return `<a class="person-row" href="#/p/${encodeURIComponent(p.uid)}">${avatar(p)}
-      <span class="person-main"><span class="person-name">${esc(p.name)}</span><br>
-      <span class="person-sub">${ev ? `${ev.emoji} ${esc(ev.name)} · ${Dates.fmt(ev.date)} · ${Dates.inWords(ev.days)}` : 'No dates added yet'}</span></span>
+    const bday = Dates.valid(p.birthday) ? Dates.fmtMD(p.birthday) : '';
+    return `<a class="person-row" href="#/p/${encodeURIComponent(p.uid)}">
+      <span class="pr-name">${esc(p.name)}</span>
+      <span class="pr-next">${bday ? `🎂 ${bday}` : 'No birthday yet'}</span>
       <span class="chev">›</span></a>`;
   }
 
   function viewPeople() {
-    const ups = upcoming(90).slice(0, 6);
+    const ups = upcoming();
     const friends = S.links.map(l => S.people[l.users.find(u => u !== S.me)]).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
     const groups = S.groups.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     const nobody = !groups.length && !S.links.length;
@@ -740,7 +732,7 @@
     const evs = Dates.events(p, undefined, S.me);
     const whoSees = groups.length ? `Only ${groups.map(g => esc(g.name)).join(' and ')} can see these — never ${esc(p.name)}.` : `Only you can see ideas you add here — ${esc(p.name)} can’t.`;
     view.innerHTML = `<a class="back" href="#/people">${icon('back')}People</a>
-      <div class="person-head">${avatar(p, true)}<div><h1>${esc(p.name)}</h1><p class="sub muted" style="margin:2px 0 0">${esc(circleWords(uid))}</p></div></div>
+      <div class="person-head"><div><h1>${esc(p.name)}</h1><p class="sub muted" style="margin:2px 0 0">${esc(circleWords(uid))}</p></div></div>
       <div class="event-tiles">${evs.map(ev => `<div class="event-tile ${ev.days <= 14 ? 'soon' : ''}"><span class="et-emoji">${ev.emoji}</span><span class="et-name">${esc(ev.name)}</span><span class="et-date">${Dates.fmt(ev.date)}</span><span class="et-when">${Dates.inWords(ev.days)}</span></div>`).join('')}
         <button class="event-tile add" id="edit-dates">${icon(evs.length ? 'edit' : 'plus')}<span class="et-name">${evs.length ? 'Edit dates' : 'Add dates'}</span></button></div>
       <div class="section-title" style="margin-top:6px;align-items:center"><h2>${esc(Dates.possessive(p.name))} wishes</h2>${(S.items[uid] || []).length > 1 ? sortPick() : ''}</div>
@@ -807,7 +799,7 @@
       }).join('');
       grand += total;
       return `<section class="shop-person" data-owner="${esc(o)}">
-        <div class="shop-head">${avatar(p)}<div class="person-main"><a class="person-name" href="#/p/${encodeURIComponent(o)}">${esc(p.name)}</a><br>
+        <div class="shop-head"><div class="person-main"><a class="person-name" href="#/p/${encodeURIComponent(o)}">${esc(p.name)}</a><br>
           <span class="person-sub">${ev ? `${ev.emoji} ${esc(Dates.title(ev, p.name))} · ${Dates.inWords(ev.days)}` : ''}</span></div>
           ${total ? `<div class="total">about<b>${money(total)}</b></div>` : ''}</div>
         <div class="wishes">${cards}</div></section>`;
