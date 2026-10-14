@@ -163,8 +163,8 @@
   function renderTabs(on) {
     const mine = myClaims().length;
     const tabs = [
-      ['people', 'people', 'People'],
       ['list', 'gift', 'My list'],
+      ['people', 'people', 'People'],
       ['shopping', 'bag', 'Shopping', mine],
     ];
     const cur = on === 'received' ? 'list' : on === 'p' ? 'people' : on;
