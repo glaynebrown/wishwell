@@ -259,6 +259,7 @@ const Store = (() => {
     return U(owner).collection('claims').doc(ref + '_' + me).set({ ref, kind, by: me, byName, name: snap.name || '', price: snap.price || null, link: snap.link || '', at: Date.now() });
   }
   const unclaim = (owner, claimId) => U(owner).collection('claims').doc(claimId).delete();
+  const setBought = (owner, claimId, bought) => U(owner).collection('claims').doc(claimId).update({ bought });
 
   // Handed over: it leaves their list (and the giver's shopping list) and shows
   // up in their Received history as "From <you>".
@@ -331,7 +332,7 @@ const Store = (() => {
   return {
     configured: true, onUser, signUp, signIn, reset, signOut, start, stop, createProfile, saveProfile, savePersonDates,
     newPersonalCode, createGroup, renameGroup, changeGroupCode, join, leaveGroup, unlink, saveItem, deleteItem, receiveItem,
-    deleteReceived, claim, unclaim, given, saveIdea, deleteIdea, addToken, removeToken, deleteAccount,
+    deleteReceived, claim, unclaim, setBought, given, saveIdea, deleteIdea, addToken, removeToken, deleteAccount,
     uid,
   };
 })();

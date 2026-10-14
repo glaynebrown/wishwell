@@ -163,7 +163,7 @@
   }
 
   function renderTabs(on) {
-    const mine = myClaims().length;
+    const mine = myClaims().filter(x => !x.c.bought).length;
     const tabs = [
       ['list', 'gift', 'My list'],
       ['people', 'people', 'People'],
@@ -661,7 +661,8 @@
     let status = '';
     let acts = '';
     if (mine) {
-      status = `<span class="status mine">${icon('check')}You’re getting this</span>`;
+      // "Bought" is just for you -- the person never sees it, others just see "Claimed"
+      status = `<label class="bought-box"><input type="checkbox" data-bought="${esc(mine.id)}" ${mine.bought ? 'checked' : ''}><span>${icon('check')}</span>Bought</label>`;
       acts = `<button class="btn quiet small" data-unclaim="${esc(e.id)}" data-kind="${kind}">Undo</button><button class="btn small" data-given="${esc(e.id)}" data-kind="${kind}">Given</button>`;
     } else if (full) {
       status = `<span class="status">${icon('check')}Claimed by ${esc(claimerWords(cl))}</span>`;
@@ -688,6 +689,8 @@
     </article>`;
   }
 
+  const confirmUndo = owner => ask('Return to their wishlist?', `You won’t be getting this anymore, and it’ll be open for others to claim on ${esc(Dates.possessive(S.people[owner] ? S.people[owner].name : 'their'))} list.`, 'Return it');
+
   function wireGiving(owner) {
     const find = (id, kind) => (kind === 'idea' ? S.ideas[owner] : S.items[owner] || []).find(x => x.id === id);
     view.querySelectorAll('[data-claim]').forEach(b => b.onclick = async ev => {
@@ -697,9 +700,10 @@
       const who = S.people[owner] ? S.people[owner].name : 'they';
       try { await API.claim(owner, e.id, b.dataset.kind, e, myName()); toast(`You’re getting this! Others will see it’s taken so no one doubles up — ${who} won’t see it. Find it in Shopping.`, 5000); } catch (err) { oops(err); }
     });
+    view.querySelectorAll('[data-bought]').forEach(b => b.onchange = () => API.setBought(owner, b.dataset.bought, b.checked).catch(oops));
     view.querySelectorAll('[data-unclaim]').forEach(b => b.onclick = async ev => {
       ev.stopPropagation();
-      try { await API.unclaim(owner, b.dataset.unclaim + '_' + S.me); } catch (err) { oops(err); }
+      if (await confirmUndo(owner)) API.unclaim(owner, b.dataset.unclaim + '_' + S.me).catch(oops);
     });
     view.querySelectorAll('[data-given]').forEach(b => b.onclick = async ev => {
       ev.stopPropagation();
@@ -784,32 +788,45 @@
       return (ea ? ea.days : 999) - (eb ? eb.days : 999);
     });
     let grand = 0;
+    let left = 0;
+    let toBuyCount = 0;
     const blocks = owners.map(o => {
       const p = S.people[o];
       const ev = nextEvent(p);
       let total = 0;
-      const cards = byOwner[o].map(c => {
+      let leftHere = 0;
+      const toBuy = [];
+      const bought = [];
+      const gone = [];
+      for (const c of byOwner[o]) {
         const e = (c.kind === 'idea' ? S.ideas[o] || [] : S.items[o] || []).find(x => x.id === c.ref);
         if (!e) {
-          return `<div class="gone"><span>${esc(p.name)} took “${esc(c.name || 'this')}” off their list.</span><button class="btn quiet small" data-drop="${esc(c.id)}" data-owner="${esc(o)}">OK</button></div>`;
+          gone.push(`<div class="gone"><span>${esc(p.name)} took “${esc(c.name || 'this')}” off their list.</span><button class="btn quiet small" data-drop="${esc(c.id)}" data-owner="${esc(o)}">OK</button></div>`);
+          continue;
         }
         total += e.price || 0;
-        return giverCard(o, e, c.kind || 'item');
-      }).join('');
+        if (!c.bought) { leftHere += e.price || 0; toBuyCount++; }
+        (c.bought ? bought : toBuy).push(giverCard(o, e, c.kind || 'item'));
+      }
       grand += total;
+      left += leftHere;
+      const group = (label, cards) => (cards.length ? `<p class="shop-label">${label}</p><div class="wishes">${cards.join('')}</div>` : '');
       return `<section class="shop-person" data-owner="${esc(o)}">
         <div class="shop-head"><div class="person-main"><a class="person-name" href="#/p/${encodeURIComponent(o)}">${esc(p.name)}</a><br>
           <span class="person-sub">${ev ? `${ev.emoji} ${esc(Dates.title(ev, p.name))} · ${Dates.inWords(ev.days)}` : ''}</span></div>
-          ${total ? `<div class="total">about<b>${money(total)}</b></div>` : ''}</div>
-        <div class="wishes">${cards}</div></section>`;
+          ${total ? `<div class="total">about<b>${money(total)}</b>${leftHere && leftHere !== total ? `<span>${money(leftHere)} left to buy</span>` : ''}</div>` : ''}</div>
+        ${group('To buy', toBuy)}${group('Bought', bought)}${gone.join('')}</section>`;
     }).join('');
-    view.innerHTML = `<div class="page-head"><div><h1>Shopping</h1><p class="sub">${all.length ? `${all.length} gift${all.length === 1 ? '' : 's'} you’re getting${grand ? ` · about ${money(grand)}` : ''}` : 'Gifts you’ve claimed show up here.'}</p></div></div>
-      ${all.length ? blocks + `<p class="hint center">Tap <b>Given</b> once they’ve opened it to clear it from their list.</p>` : `<div class="card empty"><svg class="mark"><use href="#i-mark"/></svg><h2>Nothing claimed yet</h2>
+    const sub = all.length
+      ? `${all.length} gift${all.length === 1 ? '' : 's'}${toBuyCount ? ` · ${toBuyCount} left to buy` : ' · all bought 🎉'}${grand ? ` · about ${money(grand)}` : ''}`
+      : 'Gifts you’ve claimed show up here.';
+    view.innerHTML = `<div class="page-head"><div><h1>Shopping</h1><p class="sub">${sub}</p></div></div>
+      ${all.length ? blocks + `<p class="hint center">Check <b>Bought</b> once you have it, then tap <b>Given</b> once they’ve opened it to clear it from their list.</p>` : `<div class="card empty"><svg class="mark"><use href="#i-mark"/></svg><h2>Nothing claimed yet</h2>
         <p>When you tap “I’ll get this” on someone’s list, it lands here so you can shop in one place.</p><a class="btn" href="#/people">See people</a></div>`}`;
     view.querySelectorAll('.shop-person').forEach(sec => {
       const o = sec.dataset.owner;
       const find = (id, kind) => (kind === 'idea' ? S.ideas[o] : S.items[o] || []).find(x => x.id === id);
-      sec.querySelectorAll('[data-unclaim]').forEach(b => b.onclick = () => API.unclaim(o, b.dataset.unclaim + '_' + S.me).catch(oops));
+      sec.querySelectorAll('[data-unclaim]').forEach(b => b.onclick = async () => { if (await confirmUndo(o)) API.unclaim(o, b.dataset.unclaim + '_' + S.me).catch(oops); });
       sec.querySelectorAll('[data-given]').forEach(b => b.onclick = async () => {
         const e = find(b.dataset.given, b.dataset.kind);
         if (!e) return;
@@ -818,6 +835,7 @@
         try { await API.given(o, e, b.dataset.kind, myName()); toast('Marked as given 🎁'); } catch (err) { oops(err); }
       });
       sec.querySelectorAll('[data-drop]').forEach(b => b.onclick = () => API.unclaim(o, b.dataset.drop).catch(oops));
+      sec.querySelectorAll('[data-bought]').forEach(b => b.onchange = () => API.setBought(o, b.dataset.bought, b.checked).catch(oops));
     });
   }
 
@@ -859,7 +877,7 @@
           <div class="field"><span class="label">Birthday</span>${mdPicker('st-bday', P.birthday)}</div>
           <div class="field"><span class="label">Anniversary <span class="muted">(optional)</span></span>${mdPicker('st-anni', P.anniversary)}</div>
           <div class="field"><label for="st-partner">Partner</label>
-            <select class="input" id="st-partner"><option value="">No one</option>${people().map(p => `<option value="${esc(p.uid)}" ${P.partner === p.uid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+            <select class="input" id="st-partner"><option value="">—</option>${people().map(p => `<option value="${esc(p.uid)}" ${P.partner === p.uid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
             <p class="hint" style="margin:0">Only your partner sees your anniversary and Valentine’s Day and gets reminders for them.</p></div>
           <div class="field"><span class="label">Holidays you <i>get</i> gifts for</span>${holidayChips(P.holidays || [])}
             <p class="hint" style="margin:0">Only the ones where people shop for <b>you</b> — your family can see these on your list.</p></div>

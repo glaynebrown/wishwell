@@ -210,6 +210,7 @@ const Demo = (() => {
       emit();
       return ok();
     },
+    setBought(owner, claimId, bought) { const c = list('claims', owner).find(x => x.id === claimId); if (c) c.bought = bought; emit(); return ok(); },
     unclaim(owner, claimId) { db.claims[owner] = list('claims', owner).filter(c => c.id !== claimId); emit(); return ok(); },
     given(owner, entry, kind, byName) {
       db.claims[owner] = list('claims', owner).filter(c => c.id !== entry.id + '_' + as);
