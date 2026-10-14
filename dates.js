@@ -11,7 +11,6 @@ const Dates = (() => {
   const HOLIDAYS = [
     { key: 'christmas', name: 'Christmas', emoji: '🎄' },
     { key: 'valentines', name: 'Valentine’s Day', emoji: '💌' },
-    { key: 'easter', name: 'Easter', emoji: '🌷' },
     { key: 'mothers', name: 'Mother’s Day', emoji: '💐' },
     { key: 'fathers', name: 'Father’s Day', emoji: '🌿' },
   ];
