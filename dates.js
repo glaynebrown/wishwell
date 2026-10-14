@@ -5,6 +5,7 @@
    A person's profile keeps dates as month-day only ("03-14"), no year:
      birthday, anniversary   'MM-DD' or ''
      holidays                ['christmas', 'mothers', ...]
+     partner                 uid of the one person who sees anniversary + Valentine's
      custom                  [{ name: 'Graduation', md: '05-20' }] */
 
 const Dates = (() => {
@@ -56,9 +57,12 @@ const Dates = (() => {
   }
   const daysBetween = (a, b) => Math.round((b - a) / 86400000);
 
-  // Everything a person celebrates, soonest first:
+  // Partner-only occasions: shown to (and reminded for) only the person's partner.
+  const PARTNER_ONLY = ['anniversary', 'valentines'];
+
+  // Everything a person celebrates, soonest first, as seen by `viewer` (a uid):
   // [{ key, kind, name, emoji, date, days }]
-  function events(p, from) {
+  function events(p, from, viewer) {
     const t = from || today();
     const out = [];
     const add = (key, kind, name, emoji, make) => {
@@ -70,7 +74,8 @@ const Dates = (() => {
     if (valid(p.anniversary)) add('anniversary', 'anniversary', 'Anniversary', '💍', y => fromMD(p.anniversary, y));
     for (const h of HOLIDAYS) if ((p.holidays || []).includes(h.key)) add(h.key, 'holiday', h.name, h.emoji, y => holidayOn(h.key, y));
     (p.custom || []).forEach((c, i) => { if (c && c.name && valid(c.md)) add('custom' + i, 'custom', c.name, '✨', y => fromMD(c.md, y)); });
-    return out.sort((a, b) => a.days - b.days);
+    const mine = viewer !== undefined && viewer === p.partner;
+    return out.filter(e => !PARTNER_ONLY.includes(e.key) || mine).sort((a, b) => a.days - b.days);
   }
   const valid = md => typeof md === 'string' && /^\d{2}-\d{2}$/.test(md);
 
@@ -98,7 +103,7 @@ const Dates = (() => {
   }
   const possessive = n => (/s$/i.test(n) ? n + '’' : n + '’s');
 
-  return { HOLIDAYS, MONTHS, SHORT, today, events, fmt, fmtMD, inWords, title, possessive, valid, daysBetween };
+  return { HOLIDAYS, PARTNER_ONLY, MONTHS, SHORT, today, events, fmt, fmtMD, inWords, title, possessive, valid, daysBetween };
 })();
 
 if (typeof module !== 'undefined') module.exports = Dates;

@@ -49,7 +49,7 @@
     ? `<span class="thumb"><img src="${esc(e.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.textContent='${esc(first(e.name)).replace(/'/g, '')}'"></span>`
     : `<span class="thumb">${esc(first(e.name))}</span>`);
   function nextEvent(p) {
-    const evs = Dates.events(p);
+    const evs = Dates.events(p, undefined, S.me);
     return evs[0] || null;
   }
   function sorted(list, mode) {
@@ -532,7 +532,7 @@
     const rows = [];
     const hol = {};
     for (const p of people()) {
-      for (const ev of Dates.events(p)) {
+      for (const ev of Dates.events(p, undefined, S.me)) {
         if (ev.days > horizon) continue;
         if (ev.kind === 'holiday') {
           const h = hol[ev.key] = hol[ev.key] || { ev, people: [] };
@@ -731,7 +731,7 @@
     if (ui.hideTaken) items = items.filter(e => !claimedFull(e));
     const ideas = sorted(S.ideas[uid] || [], 'new');
     const groups = mySharedGroups(uid);
-    const evs = Dates.events(p);
+    const evs = Dates.events(p, undefined, S.me);
     const whoSees = groups.length ? `Only ${groups.map(g => esc(g.name)).join(' and ')} can see these — never ${esc(p.name)}.` : `Only you can see ideas you add here — ${esc(p.name)} can’t.`;
     view.innerHTML = `<a class="back" href="#/people">${icon('back')}People</a>
       <div class="person-head">${avatar(p, true)}<div><h1>${esc(p.name)}</h1><p class="sub muted" style="margin:2px 0 0">${esc(circleWords(uid))}</p></div></div>
@@ -843,6 +843,9 @@
           <div class="field"><label for="st-name">Name</label><input class="input" id="st-name" value="${esc(P.name || '')}"></div>
           <div class="field"><span class="label">Birthday</span>${mdPicker('st-bday', P.birthday)}</div>
           <div class="field"><span class="label">Anniversary <span class="muted">(optional)</span></span>${mdPicker('st-anni', P.anniversary)}</div>
+          <div class="field"><label for="st-partner">Partner</label>
+            <select class="input" id="st-partner"><option value="">No one</option>${people().map(p => `<option value="${esc(p.uid)}" ${P.partner === p.uid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+            <p class="hint" style="margin:0">Only your partner sees your anniversary and Valentine’s Day and gets reminders for them.</p></div>
           <div class="field"><span class="label">Holidays you celebrate with gifts</span>${holidayChips(P.holidays || [])}</div>
           <div class="field"><span class="label">Other occasions</span>
             ${custom.map((c, i) => `<div class="list-row"><span class="grow">✨ ${esc(c.name)} · ${Dates.fmtMD(c.md)}</span><button class="btn quiet small" data-rmcustom="${i}">Remove</button></div>`).join('')}
@@ -904,6 +907,7 @@
         if (md || mEmpty) save(id === 'st-bday' ? { birthday: md } : { anniversary: md });
       };
     }));
+    $('#st-partner').onchange = e => save({ partner: e.target.value });
     view.querySelectorAll('[name=hol]').forEach(c => c.onchange = () => save({ holidays: [...view.querySelectorAll('[name=hol]:checked')].map(x => x.value) }));
     const presets = () => [...view.querySelectorAll('[name=remind]:checked')].map(x => Number(x.value));
     view.querySelectorAll('[name=remind]').forEach(c => c.onchange = () => { const cu = customRemind(P); save({ remind: presets().concat(cu ? [cu] : []) }); });

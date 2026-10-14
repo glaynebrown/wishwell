@@ -50,7 +50,7 @@ async function main() {
     const holidays = {};
     for (const other of circle[uid]) {
       const p = users[other];
-      for (const ev of Dates.events(p)) {
+      for (const ev of Dates.events(p, undefined, uid)) {
         if (!remind.includes(ev.days)) continue;
         if (ev.kind === 'holiday') (holidays[ev.key] = holidays[ev.key] || { ev, who: [] }).who.push(p.name);
         else hits.push({ days: ev.days, text: `${Dates.title(ev, p.name)} is ${WORDS[ev.days] || Dates.inWords(ev.days)}`, url: APP_URL + '#/p/' + other });
