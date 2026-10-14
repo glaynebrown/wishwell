@@ -1,0 +1,41 @@
+# Sends Wishwell's reminder notifications once a day (free on GitHub).
+# Needs the repo secret FIREBASE_SERVICE_ACCOUNT (see README).
+name: Daily reminders
+
+on:
+  schedule:
+    - cron: '0 14 * * *'   # 10am Eastern in summer, 9am in winter
+  workflow_dispatch:        # "Run workflow" button for testing
+
+permissions:
+  contents: write           # only used by the keep-alive step below
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/New_York
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --prefix reminders --no-audit --no-fund
+      - run: node reminders/send.js
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APP_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+
+      # GitHub pauses daily jobs in repos with no changes for 60 days. If it's
+      # been 50 days, add an empty note to the history so reminders keep going.
+      - name: Keep the daily schedule switched on
+        run: |
+          last=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - last )) -gt $(( 50 * 86400 )) ]; then
+            git config user.name "wishwell-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "Keep daily reminders running"
+            git push
+          fi
