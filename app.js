@@ -579,7 +579,7 @@
     $('#newgroup').onclick = groupSheet;
     $('#sharemine').onclick = () => shareCode(S.profile.code, 'person');
   }
-  const fmtCode = c => (c || '').replace(/^(.{3})(.+)$/, '$1-$2');
+  const fmtCode = c => c || '';
   function wireCopy() {
     view.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => shareCode(b.dataset.copy, 'group', b.dataset.what));
   }
@@ -616,18 +616,21 @@
   function groupSheet() {
     openSheet(`<div class="sheet-head"><h2>Start a family group</h2><button class="btn quiet" data-act="close">Cancel</button></div>
       <div class="field"><label for="g-name">Group name</label><input class="input" id="g-name" placeholder="e.g. Brown Family"></div>
+      <div class="field"><label for="g-code">Family code</label><input class="input" id="g-code" autocapitalize="characters" autocomplete="off" placeholder="e.g. BROWNFAM" style="text-transform:uppercase;letter-spacing:.06em">
+        <p class="hint" style="margin:0">What your family types in to join. Letters and numbers, 3–20. Leave blank for a random one.</p></div>
+      <p class="err" id="g-err" hidden></p>
       <div class="sheet-foot"><button class="btn wide" id="g-go">Create</button></div>`);
     setTimeout(() => $('#g-name').focus(), 60);
     $('#g-go').onclick = async () => {
       const name = $('#g-name').value.trim() || 'Family';
       $('#g-go').disabled = true;
       try {
-        const code = await API.createGroup(name);
+        const code = await API.createGroup(name, $('#g-code').value.trim());
         openSheet(`<div class="sheet-head"><h2>${esc(name)}</h2><button class="btn quiet" data-act="close">Done</button></div>
           <p class="muted">Send this code to your family. They sign up for Wishwell, tap <b>Enter a code</b>, and they’re in.</p>
           <div class="mycode"><span class="code">${esc(fmtCode(code))}</span><button class="btn small" id="g-share">${icon('copy')}Share</button></div>`);
         $('#g-share').onclick = () => shareCode(code, 'group', name);
-      } catch (e) { $('#g-go').disabled = false; oops(e); }
+      } catch (e) { $('#g-go').disabled = false; const er = $('#g-err'); er.hidden = false; er.textContent = e.message || 'That didn’t work.'; }
     };
   }
 
@@ -831,7 +834,7 @@
           <h3 style="margin-bottom:6px">Sharing</h3>
           <p class="hint" style="margin:0 0 12px">Your code shares just your list with one person (and theirs with you).</p>
           <div class="mycode"><span class="code">${esc(fmtCode(P.code))}</span><button class="btn small" id="st-share">${icon('copy')}Share</button></div>
-          <p class="small" style="margin:8px 0 0"><button class="linkbtn" id="st-newcode">Get a new code</button> <span class="muted">— old one stops working; existing links stay.</span></p>
+          <p class="small" style="margin:8px 0 0"><button class="linkbtn" id="st-newcode">Change my code</button> <span class="muted">— the old one stops working; people already linked stay linked.</span></p>
           <div class="field" style="margin-top:18px"><span class="label">Family groups</span>
             ${S.groups.length ? S.groups.map(g => `<div class="list-row"><span class="grow"><b>${esc(g.name)}</b><br><span class="muted small">${(g.members || []).length} member${(g.members || []).length === 1 ? '' : 's'}</span></span>
               <button class="codepill" data-copy="${esc(g.code)}" data-what="${esc(g.name)}">${esc(fmtCode(g.code))}${icon('copy')}</button>
@@ -905,9 +908,19 @@
     };
     view.querySelectorAll('[data-pal]').forEach(b => b.onclick = () => { applyPalette(b.dataset.pal); save({ palette: b.dataset.pal }); });
     $('#st-share').onclick = () => shareCode(P.code, 'person');
-    $('#st-newcode').onclick = async () => {
-      if (!(await ask('Get a new code?', 'Your current code stops working. People already linked with you stay linked.', 'New code'))) return;
-      API.newPersonalCode().then(() => toast('New code ready')).catch(oops);
+    $('#st-newcode').onclick = () => {
+      openSheet(`<div class="sheet-head"><h2>Change my code</h2><button class="btn quiet" data-act="close">Cancel</button></div>
+        <div class="field"><label for="pc-code">Your code</label><input class="input" id="pc-code" autocapitalize="characters" autocomplete="off" value="${esc(P.code || '')}" style="text-transform:uppercase;letter-spacing:.06em;font-size:20px">
+          <p class="hint" style="margin:0">Letters and numbers, 3–20. Your old code stops working; people already linked with you stay linked.</p></div>
+        <p class="err" id="pc-err" hidden></p>
+        <div class="sheet-foot"><button class="btn wide" id="pc-save">Save</button><button class="btn ghost" id="pc-random">Random</button></div>`);
+      setTimeout(() => $('#pc-code').select(), 60);
+      const go = async custom => {
+        try { await API.newPersonalCode(custom); closeSheet(); toast('Code changed'); }
+        catch (e) { const er = $('#pc-err'); er.hidden = false; er.textContent = e.message || 'That didn’t work.'; }
+      };
+      $('#pc-save').onclick = () => go($('#pc-code').value.trim());
+      $('#pc-random').onclick = () => go('');
     };
     wireCopy();
     view.querySelectorAll('[data-leave]').forEach(b => b.onclick = async () => {

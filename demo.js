@@ -133,16 +133,21 @@ const Demo = (() => {
     stop() { cb = null; },
     createProfile(p) { db.users[as] = { ...p, code: makeCode(), groups: [] }; emit(); return ok(); },
     saveProfile(patch) { Object.assign(db.users[as], clone(patch)); emit(); return ok(); },
-    newPersonalCode() {
-      const code = makeCode();
+    newPersonalCode(custom) {
+      const code = custom ? custom.toUpperCase().replace(/[^A-Z0-9]/g, '') : makeCode();
+      if (code.length < 3 || code.length > 20) return fail('Codes need 3 to 20 letters or numbers.');
+      if (code === db.users[as].code) return ok(code);
+      if (db.codes[code]) return fail('That code is already taken — try another.');
       delete db.codes[db.users[as].code];
       db.codes[code] = { type: 'person', uid: as };
       db.users[as].code = code;
       emit();
       return ok(code);
     },
-    createGroup(name) {
-      const code = makeCode();
+    createGroup(name, custom) {
+      const code = custom ? custom.toUpperCase().replace(/[^A-Z0-9]/g, '') : makeCode();
+      if (code.length < 3 || code.length > 20) return fail('Codes need 3 to 20 letters or numbers.');
+      if (db.codes[code]) return fail('That code is already taken — try another.');
       db.groups[code] = { name, members: [as] };
       db.codes[code] = { type: 'group' };
       db.users[as].groups.push(code);

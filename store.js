@@ -133,6 +133,14 @@ const Store = (() => {
   const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   const makeCode = () => Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
   const cleanCode = c => (c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // A code you pick yourself (letters and numbers, 3-20), or a random one.
+  function pickCode(custom) {
+    if (!custom) return makeCode();
+    const c = cleanCode(custom);
+    if (c.length < 3 || c.length > 20) throw new Error('Codes need 3 to 20 letters or numbers.');
+    return c;
+  }
+  const taken = e => (e && /permission|exists/i.test(e.code || e.message || '') ? new Error('That code is already taken — try another.') : e);
 
   // First sign-in: a profile and a personal code.
   async function createProfile(p) {
@@ -145,26 +153,29 @@ const Store = (() => {
   }
   const saveProfile = patch => U(uid()).set(patch, { merge: true });
 
-  async function newPersonalCode() {
+  async function newPersonalCode(custom) {
     const me = uid();
     const old = S.profile && S.profile.code;
-    const code = makeCode();
+    const code = pickCode(custom);
+    if (code === old) return code;
+    if ((await db.collection('codes').doc(code).get()).exists) throw new Error('That code is already taken — try another.');
     const batch = db.batch();
     batch.set(db.collection('codes').doc(code), { type: 'person', uid: me });
     if (old) batch.delete(db.collection('codes').doc(old));
     batch.update(U(me), { code });
-    await batch.commit();
+    await batch.commit().catch(e => { throw taken(e); });
     return code;
   }
 
-  async function createGroup(name) {
+  async function createGroup(name, custom) {
     const me = uid();
-    const code = makeCode();
+    const code = pickCode(custom);
+    if ((await db.collection('codes').doc(code).get()).exists) throw new Error('That code is already taken — try another.');
     const batch = db.batch();
     batch.set(db.collection('groups').doc(code), { name, members: [me], createdBy: me, createdAt: Date.now() });
     batch.set(db.collection('codes').doc(code), { type: 'group' });
     batch.update(U(me), { groups: FV.arrayUnion(code) });
-    await batch.commit();
+    await batch.commit().catch(e => { throw taken(e); });
     return code;
   }
   const renameGroup = (code, name) => db.collection('groups').doc(code).update({ name });
