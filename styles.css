@@ -273,6 +273,12 @@ textarea.input { resize: vertical; min-height: 70px; }
 .check-chips input { position: absolute; opacity: 0; pointer-events: none; }
 .check-chips span { display: inline-flex; align-items: center; gap: 5px; border: 1.5px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 600; color: var(--muted); background: var(--card); }
 .check-chips input:checked + span { background: var(--soft); border-color: transparent; color: var(--deep); }
+.check-chips.one-row { flex-wrap: nowrap; }
+.check-chips.one-row span, .chip-btn { white-space: nowrap; }
+.chip-btn { display: inline-flex; align-items: center; gap: 4px; border: 1.5px dashed var(--line); border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 600; color: var(--muted); background: var(--card); cursor: pointer; }
+.chip-btn .icon { width: 14px; height: 14px; }
+/* a custom reminder looks different from the presets, with a pencil = tap to change */
+.chip-btn.on { background: var(--card); border: 1.5px dashed var(--deep); color: var(--deep); }
 .check-chips input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .palettes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .pal { border: 2px solid var(--line); border-radius: 16px; padding: 10px; background: var(--card); cursor: pointer; text-align: left; }
@@ -333,8 +339,8 @@ textarea.input { resize: vertical; min-height: 70px; }
 .banner { max-width: 720px; margin: 8px auto 0; padding: 10px 16px; border-radius: 14px; background: var(--soft); color: var(--deep); font-size: 14px; font-weight: 600; width: calc(100% - 40px); }
 #toast {
   position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
-  background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: 14.5px; font-weight: 600;
-  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 70; max-width: calc(100% - 40px); text-align: center;
+  background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 18px; font-size: 14.5px; font-weight: 600; line-height: 1.4; width: max-content;
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 70; max-width: min(420px, calc(100% - 40px)); text-align: center;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 @media (min-width: 760px) { #toast { bottom: 30px; } }

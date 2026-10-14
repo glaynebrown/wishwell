@@ -254,7 +254,7 @@
         await API.createProfile({
           name, birthday: readMD('s-bday'), anniversary: '', custom: [],
           holidays: [...view.querySelectorAll('[name=hol]:checked')].map(x => x.value),
-          remind: [21, 7], palette: ls.get('ww-palette', 'sage'),
+          remind: [14, 7], palette: ls.get('ww-palette', 'sage'),
         });
         location.hash = '#/people';
       } catch (err) { oops(err); }
@@ -801,7 +801,8 @@
     { key: 'blue', name: 'Dusty blue & linen', sw: ['#F4F1EB', '#E0E8EE', '#7F9BB0', '#4E6A7F'] },
     { key: 'blush', name: 'Blush & warm gray', sw: ['#F7F2EF', '#F3E3DE', '#CF9F96', '#A26C64'] },
   ];
-  const REMIND = [[21, '3 weeks'], [14, '2 weeks'], [7, '1 week'], [3, '3 days'], [1, 'Day before']];
+  const REMIND = [[14, '2 wks'], [7, '1 wk'], [3, '3 days']];
+  const customRemind = P => (P.remind || []).find(d => !REMIND.some(([x]) => x === d));
   const pushOn = () => !!ls.get('ww-push', '') && typeof Notification !== 'undefined' && Notification.permission === 'granted';
 
   function viewSettings() {
@@ -846,8 +847,9 @@
           <p class="hint" style="margin:0 0 12px">Before birthdays, anniversaries and holidays of the people you’re linked with.</p>
           <label class="switch" style="color:var(--ink)"><input type="checkbox" id="st-push" ${pushOn() ? 'checked' : ''}>Phone notifications on this device</label>
           <p class="status-line" id="st-push-note" style="margin:6px 0 14px">${pushNote()}</p>
-          <span class="label">Remind me</span>
-          <div class="check-chips" style="margin-top:6px">${REMIND.map(([d, l]) => `<label><input type="checkbox" name="remind" value="${d}" ${(P.remind || []).includes(d) ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
+          <span class="label">Remind me before each event</span>
+          <div class="check-chips one-row" style="margin-top:6px">${REMIND.map(([d, l]) => `<label><input type="checkbox" name="remind" value="${d}" ${(P.remind || []).includes(d) ? 'checked' : ''}><span>${l}</span></label>`).join('')}
+            <button type="button" class="chip-btn ${customRemind(P) ? 'on' : ''}" id="st-rcustom">${customRemind(P) ? `${customRemind(P)} day${customRemind(P) === 1 ? '' : 's'}${icon('edit')}` : `${icon('plus')}Custom`}</button></div>
         </div>
         <div class="card">
           <h3 style="margin-bottom:10px">Account</h3>
@@ -868,7 +870,25 @@
       };
     }));
     view.querySelectorAll('[name=hol]').forEach(c => c.onchange = () => save({ holidays: [...view.querySelectorAll('[name=hol]:checked')].map(x => x.value) }));
-    view.querySelectorAll('[name=remind]').forEach(c => c.onchange = () => save({ remind: [...view.querySelectorAll('[name=remind]:checked')].map(x => Number(x.value)) }));
+    const presets = () => [...view.querySelectorAll('[name=remind]:checked')].map(x => Number(x.value));
+    view.querySelectorAll('[name=remind]').forEach(c => c.onchange = () => { const cu = customRemind(P); save({ remind: presets().concat(cu ? [cu] : []) }); });
+    $('#st-rcustom').onclick = () => {
+      const cu = customRemind(P);
+      openSheet(`<div class="sheet-head"><h2>Custom reminder</h2><button class="btn quiet" data-act="close">Cancel</button></div>
+        <div class="field"><label for="rc-days">How many days before each event?</label>
+          <input class="input" id="rc-days" type="number" inputmode="numeric" min="1" max="90" value="${cu || 10}"></div>
+        <div class="sheet-foot"><button class="btn wide" id="rc-save">Save</button>${cu ? '<button class="btn danger" id="rc-off">Turn off</button>' : ''}</div>`);
+      setTimeout(() => $('#rc-days').select(), 60);
+      const pre = presets();
+      $('#rc-save').onclick = () => {
+        const n = Math.round(Number($('#rc-days').value));
+        if (!(n >= 1 && n <= 90)) { toast('Pick 1 to 90 days'); return; }
+        closeSheet();
+        save({ remind: [...new Set(pre.concat([n]))] });
+      };
+      const off = $('#rc-off');
+      if (off) off.onclick = () => { closeSheet(); save({ remind: pre }); };
+    };
     view.querySelectorAll('[data-rmcustom]').forEach(b => b.onclick = () => save({ custom: custom.filter((_, i) => i !== Number(b.dataset.rmcustom)) }));
     $('#st-addcustom').onclick = () => {
       openSheet(`<div class="sheet-head"><h2>Add an occasion</h2><button class="btn quiet" data-act="close">Cancel</button></div>
