@@ -3,17 +3,17 @@
 
    Firestore layout:
      users/{uid}                   profile: name, birthday, anniversary, holidays, custom,
-                                   remind [days], palette, code (personal), groups [group codes]
+                                   remind [days], palette, code (personal), groups [group ids]
      users/{uid}/items/{id}        their wishes (they and everyone linked to them can read)
      users/{uid}/claims/{ref_by}   "I'll get this" -- everyone linked EXCEPT the owner
      users/{uid}/circles/{c}/ideas/{id}
-                                   gift ideas others added. c = a family group code (that
+                                   gift ideas others added. c = a family group id (that
                                    group sees it) or 'u_' + adder's uid (just the adder).
-                                   The idea's own scope field says the same: code or 'me'.
+                                   The idea's own scope field says the same: group id or 'me'.
      users/{uid}/received/{id}     given/received history -- owner only
      users/{uid}/private/push      phone notification tokens -- owner only
-     groups/{code}                 a family group: { name, members [uids] }
-     codes/{code}                  { type: 'person', uid } or { type: 'group' }
+     groups/{id}                   a family group: { name, code, members [uids] }
+     codes/{code}                  { type: 'person', uid } or { type: 'group', gid }
      links/{uidA_uidB}             a one-to-one connection made with a personal code
 
    firestore.rules is what actually keeps the surprises hidden. */
@@ -80,7 +80,7 @@ const Store = (() => {
     listen('myItems', U(me).collection('items'), s => { S.items[me] = s ? docs(s) : []; emit(); });
     listen('received', U(me).collection('received'), s => { S.received = s ? docs(s) : []; emit(); });
     listen('groups', db.collection('groups').where('members', 'array-contains', me), s => {
-      S.groups = s ? s.docs.map(d => ({ code: d.id, ...d.data() })) : [];
+      S.groups = s ? s.docs.map(d => ({ id: d.id, ...d.data() })) : [];
       sync(); emit();
     });
     listen('links', db.collection('links').where('users', 'array-contains', me), s => {
@@ -106,7 +106,7 @@ const Store = (() => {
 
     const keys = new Set();
     for (const p of want) {
-      const shared = S.groups.filter(g => myGroups.includes(g.code) && (g.members || []).includes(p)).map(g => g.code);
+      const shared = S.groups.filter(g => myGroups.includes(g.id) && (g.members || []).includes(p)).map(g => g.id);
       const k = (name) => { keys.add(`p:${p}:${name}`); return `p:${p}:${name}`; };
       listen(k('profile'), U(p), s => { if (s && s.exists) S.people[p] = { uid: p, ...s.data() }; else delete S.people[p]; emit(); });
       listen(k('items'), U(p).collection('items'), s => { S.items[p] = s ? docs(s) : []; emit(); });
@@ -167,24 +167,38 @@ const Store = (() => {
     return code;
   }
 
+  // Family groups have a fixed id; their code (what people type to join) can change.
   async function createGroup(name, custom) {
     const me = uid();
     const code = pickCode(custom);
     if ((await db.collection('codes').doc(code).get()).exists) throw new Error('That code is already taken — try another.');
+    const ref = db.collection('groups').doc();
     const batch = db.batch();
-    batch.set(db.collection('groups').doc(code), { name, members: [me], createdBy: me, createdAt: Date.now() });
-    batch.set(db.collection('codes').doc(code), { type: 'group' });
-    batch.update(U(me), { groups: FV.arrayUnion(code) });
+    batch.set(ref, { name, code, members: [me], createdBy: me, createdAt: Date.now() });
+    batch.set(db.collection('codes').doc(code), { type: 'group', gid: ref.id });
+    batch.update(U(me), { groups: FV.arrayUnion(ref.id) });
     await batch.commit().catch(e => { throw taken(e); });
     return code;
   }
-  const renameGroup = (code, name) => db.collection('groups').doc(code).update({ name });
+  const renameGroup = (gid, name) => db.collection('groups').doc(gid).update({ name });
+  async function changeGroupCode(gid, custom) {
+    const g = S.groups.find(x => x.id === gid);
+    const code = pickCode(custom);
+    if (!g || code === g.code) return code;
+    if ((await db.collection('codes').doc(code).get()).exists) throw new Error('That code is already taken — try another.');
+    const batch = db.batch();
+    batch.update(db.collection('groups').doc(gid), { code });
+    batch.set(db.collection('codes').doc(code), { type: 'group', gid });
+    batch.delete(db.collection('codes').doc(g.code));
+    await batch.commit().catch(e => { throw taken(e); });
+    return code;
+  }
 
   // One box for both kinds of code. -> { type: 'person'|'group' }
   async function join(raw) {
     const me = uid();
     const code = cleanCode(raw);
-    if (code.length < 4) throw new Error('That code looks too short.');
+    if (code.length < 3) throw new Error('That code looks too short.');
     const snap = await db.collection('codes').doc(code).get();
     if (!snap.exists) throw new Error('That code didn’t match anyone. Check it and try again.');
     const c = snap.data();
@@ -195,25 +209,26 @@ const Store = (() => {
       await db.collection('links').doc(pairId(me, c.uid)).set({ users, code, at: Date.now() });
       return { type: 'person', uid: c.uid };
     }
-    if (S.groups.some(g => g.code === code)) throw new Error('You’re already in that group.');
+    if (S.groups.some(g => g.id === c.gid)) throw new Error('You’re already in that group.');
     const batch = db.batch();
-    batch.update(db.collection('groups').doc(code), { members: FV.arrayUnion(me) });
-    batch.update(U(me), { groups: FV.arrayUnion(code) });
+    // joinCode proves you know the group's current code (see firestore.rules)
+    batch.update(db.collection('groups').doc(c.gid), { members: FV.arrayUnion(me), joinCode: code });
+    batch.update(U(me), { groups: FV.arrayUnion(c.gid) });
     await batch.commit();
     return { type: 'group', code };
   }
 
-  async function leaveGroup(code) {
+  async function leaveGroup(gid) {
     const me = uid();
-    const g = S.groups.find(x => x.code === code);
+    const g = S.groups.find(x => x.id === gid);
     const batch = db.batch();
     if (g && g.members.length <= 1) {
-      batch.delete(db.collection('groups').doc(code));
-      batch.delete(db.collection('codes').doc(code));
+      batch.delete(db.collection('groups').doc(gid));
+      if (g.code) batch.delete(db.collection('codes').doc(g.code));
     } else {
-      batch.update(db.collection('groups').doc(code), { members: FV.arrayRemove(me) });
+      batch.update(db.collection('groups').doc(gid), { members: FV.arrayRemove(me) });
     }
-    batch.update(U(me), { groups: FV.arrayRemove(code) });
+    batch.update(U(me), { groups: FV.arrayRemove(gid) });
     await batch.commit();
   }
   const unlink = other => db.collection('links').doc(pairId(uid(), other)).delete();
@@ -305,7 +320,7 @@ const Store = (() => {
       ops.slice(i, i + 400).forEach(f => f(b));
       await b.commit();
     }
-    for (const g of S.groups) await leaveGroup(g.code);
+    for (const g of S.groups) await leaveGroup(g.id);
     stop();
     await U(me).delete();
     await u.delete();
@@ -313,7 +328,7 @@ const Store = (() => {
 
   return {
     configured: true, onUser, signUp, signIn, reset, signOut, start, stop, createProfile, saveProfile,
-    newPersonalCode, createGroup, renameGroup, join, leaveGroup, unlink, saveItem, deleteItem, receiveItem,
+    newPersonalCode, createGroup, renameGroup, changeGroupCode, join, leaveGroup, unlink, saveItem, deleteItem, receiveItem,
     deleteReceived, claim, unclaim, given, saveIdea, deleteIdea, addToken, removeToken, deleteAccount,
     uid,
   };

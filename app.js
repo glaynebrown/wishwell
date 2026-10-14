@@ -42,7 +42,7 @@
     const mix = [18, 30, 42][h % 3];
     return `background: color-mix(in srgb, hsl(${h} 35% 70%) ${mix}%, var(--softer)); color: color-mix(in srgb, hsl(${h} 30% 35%) 60%, var(--ink));`;
   }
-  const mySharedGroups = uid => S.groups.filter(g => (S.profile.groups || []).includes(g.code) && (g.members || []).includes(uid));
+  const mySharedGroups = uid => S.groups.filter(g => (S.profile.groups || []).includes(g.id) && (g.members || []).includes(uid));
   const isLinked = uid => S.links.some(l => l.users.includes(uid));
   const claimsOn = (owner, ref) => (S.claims[owner] || []).filter(c => c.ref === ref);
   const thumb = e => (e.photo
@@ -365,11 +365,11 @@
     const isIdea = ctx.kind === 'idea';
     const ownerName = isIdea ? S.people[ctx.owner].name : '';
     const groups = isIdea ? mySharedGroups(ctx.owner) : [];
-    const scope = e.scope || (groups[0] ? groups[0].code : 'me');
+    const scope = e.scope || (groups[0] ? groups[0].id : 'me');
     let photo = e.photo || '';
     let star = !!e.star;
     let qty = e.qty || 1;
-    const canDelete = !!e.id && (!isIdea || e.by === S.me || groups.some(g => g.code === e.scope));
+    const canDelete = !!e.id && (!isIdea || e.by === S.me || groups.some(g => g.id === e.scope));
 
     openSheet(`
       <div class="sheet-head"><h2>${e.id ? (isIdea ? 'Edit idea' : 'Edit wish') : (isIdea ? `Gift idea for ${esc(ownerName)}` : 'Add a wish')}</h2>
@@ -391,7 +391,7 @@
       </div>
       <div class="field"><label for="f-notes">Notes <span class="muted">(size, color…)</span></label><textarea class="input" id="f-notes" rows="2">${esc(e.notes || '')}</textarea></div>
       ${isIdea ? `<div class="field"><label for="f-scope">Who can see this idea</label><select class="input" id="f-scope">
-          ${groups.map(g => `<option value="${esc(g.code)}" ${scope === g.code ? 'selected' : ''}>${esc(g.name)} (not ${esc(ownerName)})</option>`).join('')}
+          ${groups.map(g => `<option value="${esc(g.id)}" ${scope === g.id ? 'selected' : ''}>${esc(g.name)} (not ${esc(ownerName)})</option>`).join('')}
           <option value="me" ${scope === 'me' ? 'selected' : ''}>Just me</option></select></div>` : `
       <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
         <button class="star-toggle ${star ? 'on' : ''}" id="f-star" type="button">${icon('star')}Really want</button>
@@ -668,11 +668,11 @@
     if (e.star) tags.push(`<span class="tag star">${icon('star')}Really want</span>`);
     if (qty > 1) tags.push(`<span class="tag">Wants ${qty}</span>`);
     if (kind === 'idea') {
-      const g = S.groups.find(x => x.code === e.scope);
+      const g = S.groups.find(x => x.id === e.scope);
       tags.push(`<span class="tag idea">Added by ${esc(e.by === S.me ? 'you' : e.byName || 'someone')}</span>`);
       tags.push(`<span class="tag">${icon('lock')} ${esc(e.scope === 'me' ? 'Just you' : g ? g.name : 'Group')}</span>`);
     }
-    const editable = kind === 'idea' && (e.by === S.me || S.groups.some(g => g.code === e.scope));
+    const editable = kind === 'idea' && (e.by === S.me || S.groups.some(g => g.id === e.scope));
     return `<article class="wish ${full && !mine ? 'taken' : ''} ${editable ? 'tap' : ''}" ${editable ? `data-editidea="${esc(e.id)}"` : ''}>
       <div class="wish-top">${thumb(e)}<div class="wish-body">
         <div class="wish-name">${esc(e.name || 'Untitled')}</div>${metaLine(e)}
@@ -833,13 +833,14 @@
         <div class="card">
           <h3 style="margin-bottom:6px">Sharing</h3>
           <p class="hint" style="margin:0 0 12px">Your code shares just your list with one person (and theirs with you).</p>
-          <div class="mycode"><span class="code">${esc(fmtCode(P.code))}</span><button class="btn small" id="st-share">${icon('copy')}Share</button></div>
-          <p class="small" style="margin:8px 0 0"><button class="linkbtn" id="st-newcode">Change my code</button> <span class="muted">— the old one stops working; people already linked stay linked.</span></p>
+          <div class="mycode"><span class="code">${esc(fmtCode(P.code))}</span><button class="edit-btn" id="st-newcode" aria-label="Change my code">${icon('edit')}</button><button class="btn small" id="st-share" style="margin-left:auto">${icon('copy')}Share</button></div>
           <div class="field" style="margin-top:18px"><span class="label">Family groups</span>
-            ${S.groups.length ? S.groups.map(g => `<div class="list-row"><span class="grow"><b>${esc(g.name)}</b><br><span class="muted small">${(g.members || []).length} member${(g.members || []).length === 1 ? '' : 's'}</span></span>
-              <button class="codepill" data-copy="${esc(g.code)}" data-what="${esc(g.name)}">${esc(fmtCode(g.code))}${icon('copy')}</button>
-              <button class="btn quiet small" data-rename="${esc(g.code)}">Rename</button>
-              <button class="btn quiet small" data-leave="${esc(g.code)}">Leave</button></div>`).join('') : '<p class="muted small" style="margin:0">None yet.</p>'}
+            ${S.groups.length ? S.groups.map(g => `<div class="group-row">
+              <div class="group-meta"><button class="group-name" data-rename="${esc(g.id)}" aria-label="Rename ${esc(g.name)}">${esc(g.name)}</button>
+                <button class="codepill" data-copy="${esc(g.code)}" data-what="${esc(g.name)}" aria-label="Share code">${esc(fmtCode(g.code))}${icon('copy')}</button>
+                <button class="edit-btn" data-gcode="${esc(g.id)}" aria-label="Change ${esc(g.name)} code">${icon('edit')}</button>
+                <button class="leave-x" data-leave="${esc(g.id)}" aria-label="Leave ${esc(g.name)}" title="Leave group">×</button></div>
+              <div class="group-meta"><span>${(g.members || []).length} member${(g.members || []).length === 1 ? '' : 's'}</span></div></div>`).join('') : '<p class="muted small" style="margin:0">None yet.</p>'}
           </div>
           ${S.links.length ? `<div class="field"><span class="label">Linked with you</span>
             ${S.links.map(l => { const o = l.users.find(u => u !== S.me); const p = S.people[o]; return `<div class="list-row"><span class="grow">${esc(p ? p.name : 'Someone')}</span><button class="btn quiet small" data-unlink="${esc(o)}">Unlink</button></div>`; }).join('')}</div>` : ''}
@@ -908,30 +909,22 @@
     };
     view.querySelectorAll('[data-pal]').forEach(b => b.onclick = () => { applyPalette(b.dataset.pal); save({ palette: b.dataset.pal }); });
     $('#st-share').onclick = () => shareCode(P.code, 'person');
-    $('#st-newcode').onclick = () => {
-      openSheet(`<div class="sheet-head"><h2>Change my code</h2><button class="btn quiet" data-act="close">Cancel</button></div>
-        <div class="field"><label for="pc-code">Your code</label><input class="input" id="pc-code" autocapitalize="characters" autocomplete="off" value="${esc(P.code || '')}" style="text-transform:uppercase;letter-spacing:.06em;font-size:20px">
-          <p class="hint" style="margin:0">Letters and numbers, 3–20. Your old code stops working; people already linked with you stay linked.</p></div>
-        <p class="err" id="pc-err" hidden></p>
-        <div class="sheet-foot"><button class="btn wide" id="pc-save">Save</button><button class="btn ghost" id="pc-random">Random</button></div>`);
-      setTimeout(() => $('#pc-code').select(), 60);
-      const go = async custom => {
-        try { await API.newPersonalCode(custom); closeSheet(); toast('Code changed'); }
-        catch (e) { const er = $('#pc-err'); er.hidden = false; er.textContent = e.message || 'That didn’t work.'; }
-      };
-      $('#pc-save').onclick = () => go($('#pc-code').value.trim());
-      $('#pc-random').onclick = () => go('');
-    };
+    $('#st-newcode').onclick = () => codeSheet('Change my code', P.code,
+      'Your old code stops working. People already linked with you stay linked.', c => API.newPersonalCode(c));
+    view.querySelectorAll('[data-gcode]').forEach(b => b.onclick = () => {
+      const g = S.groups.find(x => x.id === b.dataset.gcode);
+      codeSheet(`${g.name} code`, g.code, 'The old code stops working. Everyone already in the group stays in.', c => API.changeGroupCode(g.id, c));
+    });
     wireCopy();
     view.querySelectorAll('[data-leave]').forEach(b => b.onclick = async () => {
-      const g = S.groups.find(x => x.code === b.dataset.leave);
+      const g = S.groups.find(x => x.id === b.dataset.leave);
       if (!(await ask(`Leave ${esc(g.name)}?`, 'You’ll stop seeing their lists (and they’ll stop seeing yours) unless you’re linked another way. You can rejoin with the code.', 'Leave', { danger: true }))) return;
-      API.leaveGroup(g.code).catch(oops);
+      API.leaveGroup(g.id).catch(oops);
     });
     view.querySelectorAll('[data-rename]').forEach(b => b.onclick = async () => {
-      const g = S.groups.find(x => x.code === b.dataset.rename);
+      const g = S.groups.find(x => x.id === b.dataset.rename);
       const name = await ask('Rename group', '', 'Save', { input: 'text', placeholder: g.name });
-      if (name && name.trim()) API.renameGroup(g.code, name.trim()).catch(oops);
+      if (name && name.trim()) API.renameGroup(g.id, name.trim()).catch(oops);
     });
     view.querySelectorAll('[data-unlink]').forEach(b => b.onclick = async () => {
       const p = S.people[b.dataset.unlink];
@@ -952,6 +945,21 @@
         try { await API.deleteAccount(pw); toast('Account deleted'); } catch (e) { oops(e.code ? { message: niceAuth(e) } : e); }
       };
     }
+  }
+
+  function codeSheet(title, current, note, saveFn) {
+    openSheet(`<div class="sheet-head"><h2>${esc(title)}</h2><button class="btn quiet" data-act="close">Cancel</button></div>
+      <div class="field"><input class="input" id="pc-code" autocapitalize="characters" autocomplete="off" value="${esc(current || '')}" aria-label="Code" style="text-transform:uppercase;letter-spacing:.06em;font-size:20px">
+        <p class="hint" style="margin:0">Letters and numbers, 3–20. ${esc(note)}</p></div>
+      <p class="err" id="pc-err" hidden></p>
+      <div class="sheet-foot"><button class="btn wide" id="pc-save">Save</button><button class="btn ghost" id="pc-random">Random</button></div>`);
+    setTimeout(() => $('#pc-code').select(), 60);
+    const go = async custom => {
+      try { await saveFn(custom); closeSheet(); toast('Code changed'); }
+      catch (e) { const er = $('#pc-err'); er.hidden = false; er.textContent = e.message || 'That didn’t work.'; }
+    };
+    $('#pc-save').onclick = () => go($('#pc-code').value.trim());
+    $('#pc-random').onclick = () => go('');
   }
 
   // ---------- phone notifications ----------

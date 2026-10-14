@@ -7,7 +7,7 @@
    Izzy claimed on her list. */
 
 const Demo = (() => {
-  const KEY = 'ww-demo';
+  const KEY = 'ww-demo2';
   let db = null;
   let as = 'me';
   let cb = null;
@@ -27,17 +27,17 @@ const Demo = (() => {
     const it = (name, o) => ({ id: newId(), name, createdAt: now - Math.random() * 3e9, qty: 1, ...o });
     return {
       users: {
-        me: { name: 'Bella', birthday: md(40), anniversary: '', holidays: ['christmas', 'valentines', 'mothers'], custom: [], remind: [21, 7], palette: 'sage', code: 'BELLA7', groups: ['FAMLY8'] },
-        mom: { name: 'Mom', birthday: md(25), holidays: ['christmas', 'mothers', 'easter'], custom: [], remind: [21, 7], code: 'MOM234', groups: ['FAMLY8'] },
-        dad: { name: 'Dad', birthday: md(95), anniversary: md(160), holidays: ['christmas', 'fathers'], custom: [], remind: [21, 7], code: 'DAD234', groups: ['FAMLY8'] },
-        izzy: { name: 'Izzy', birthday: md(9), holidays: ['christmas', 'valentines'], custom: [], remind: [21, 7], code: 'IZZY23', groups: ['FAMLY8'] },
+        me: { name: 'Bella', birthday: md(40), anniversary: '', holidays: ['christmas', 'valentines', 'mothers'], custom: [], remind: [21, 7], palette: 'sage', code: 'BELLA7', groups: ['fam1'] },
+        mom: { name: 'Mom', birthday: md(25), holidays: ['christmas', 'mothers', 'easter'], custom: [], remind: [21, 7], code: 'MOM234', groups: ['fam1'] },
+        dad: { name: 'Dad', birthday: md(95), anniversary: md(160), holidays: ['christmas', 'fathers'], custom: [], remind: [21, 7], code: 'DAD234', groups: ['fam1'] },
+        izzy: { name: 'Izzy', birthday: md(9), holidays: ['christmas', 'valentines'], custom: [], remind: [21, 7], code: 'IZZY23', groups: ['fam1'] },
         jo: { name: 'Jo', birthday: md(58), holidays: ['christmas'], custom: [], remind: [7], code: 'JOJO45', groups: [] },
       },
-      groups: { FAMLY8: { name: 'Brown Family', members: ['me', 'mom', 'dad', 'izzy'] } },
+      groups: { fam1: { name: 'Brown Family', code: 'BROWNFAM', members: ['me', 'mom', 'dad', 'izzy'] } },
       links: { [pairId('me', 'jo')]: { users: ['jo', 'me'].sort() } },
       codes: {
         BELLA7: { type: 'person', uid: 'me' }, MOM234: { type: 'person', uid: 'mom' }, DAD234: { type: 'person', uid: 'dad' },
-        IZZY23: { type: 'person', uid: 'izzy' }, JOJO45: { type: 'person', uid: 'jo' }, FAMLY8: { type: 'group' },
+        IZZY23: { type: 'person', uid: 'izzy' }, JOJO45: { type: 'person', uid: 'jo' }, BROWNFAM: { type: 'group', gid: 'fam1' },
       },
       items: {
         me: [
@@ -82,8 +82,8 @@ const Demo = (() => {
       db.claims.me.push({ id: socks.id + '_mom', ref: socks.id, kind: 'item', by: 'mom', byName: 'Mom', name: socks.name, price: socks.price, at: Date.now() });
       const scarf = db.items.mom[1];
       db.claims.mom = [{ id: scarf.id + '_me', ref: scarf.id, kind: 'item', by: 'me', byName: 'Bella', name: scarf.name, price: scarf.price, at: Date.now() }];
-      db.ideas.dad = [{ id: newId(), name: 'Weber grill', notes: 'He mentioned his old one is rusting out', price: 249, scope: 'FAMLY8', by: 'mom', byName: 'Mom', at: Date.now() }];
-      db.ideas.me = [{ id: newId(), name: 'Pottery wheel lessons', notes: 'Bella keeps watching pottery videos 👀', scope: 'FAMLY8', by: 'izzy', byName: 'Izzy', at: Date.now() }];
+      db.ideas.dad = [{ id: newId(), name: 'Weber grill', notes: 'He mentioned his old one is rusting out', price: 249, scope: 'fam1', by: 'mom', byName: 'Mom', at: Date.now() }];
+      db.ideas.me = [{ id: newId(), name: 'Pottery wheel lessons', notes: 'Bella keeps watching pottery videos 👀', scope: 'fam1', by: 'izzy', byName: 'Izzy', at: Date.now() }];
       save();
     }
     try { as = localStorage.getItem(KEY + '-as') || 'me'; } catch (e) { as = 'me'; }
@@ -99,7 +99,7 @@ const Demo = (() => {
 
   function state() {
     const me = as;
-    const groups = Object.entries(db.groups).filter(([, g]) => g.members.includes(me)).map(([code, g]) => ({ code, ...clone(g) }));
+    const groups = Object.entries(db.groups).filter(([, g]) => g.members.includes(me)).map(([id, g]) => ({ id, ...clone(g) }));
     const links = Object.entries(db.links).filter(([, l]) => l.users.includes(me)).map(([id, l]) => ({ id, ...clone(l) }));
     const S = { me, profile: clone(db.users[me]), loaded: true, groups, links, people: {}, items: { [me]: clone(db.items[me] || []) }, claims: {}, ideas: {}, received: clone(db.received[me] || []) };
     for (const p of Object.keys(db.users)) {
@@ -148,13 +148,26 @@ const Demo = (() => {
       const code = custom ? custom.toUpperCase().replace(/[^A-Z0-9]/g, '') : makeCode();
       if (code.length < 3 || code.length > 20) return fail('Codes need 3 to 20 letters or numbers.');
       if (db.codes[code]) return fail('That code is already taken — try another.');
-      db.groups[code] = { name, members: [as] };
-      db.codes[code] = { type: 'group' };
-      db.users[as].groups.push(code);
+      const gid = newId();
+      db.groups[gid] = { name, code, members: [as] };
+      db.codes[code] = { type: 'group', gid };
+      db.users[as].groups.push(gid);
       emit();
       return ok(code);
     },
-    renameGroup(code, name) { db.groups[code].name = name; emit(); return ok(); },
+    renameGroup(gid, name) { db.groups[gid].name = name; emit(); return ok(); },
+    changeGroupCode(gid, custom) {
+      const g = db.groups[gid];
+      const code = custom ? custom.toUpperCase().replace(/[^A-Z0-9]/g, '') : makeCode();
+      if (code.length < 3 || code.length > 20) return fail('Codes need 3 to 20 letters or numbers.');
+      if (code === g.code) return ok(code);
+      if (db.codes[code]) return fail('That code is already taken — try another.');
+      delete db.codes[g.code];
+      db.codes[code] = { type: 'group', gid };
+      g.code = code;
+      emit();
+      return ok(code);
+    },
     join(raw) {
       const code = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       const c = db.codes[code];
@@ -166,17 +179,18 @@ const Demo = (() => {
         emit();
         return ok({ type: 'person', uid: c.uid });
       }
-      if (db.groups[code].members.includes(as)) return fail('You’re already in that group.');
-      db.groups[code].members.push(as);
-      db.users[as].groups.push(code);
+      const g = db.groups[c.gid];
+      if (g.members.includes(as)) return fail('You’re already in that group.');
+      g.members.push(as);
+      db.users[as].groups.push(c.gid);
       emit();
       return ok({ type: 'group', code });
     },
-    leaveGroup(code) {
-      const g = db.groups[code];
+    leaveGroup(gid) {
+      const g = db.groups[gid];
       g.members = g.members.filter(m => m !== as);
-      if (!g.members.length) { delete db.groups[code]; delete db.codes[code]; }
-      db.users[as].groups = db.users[as].groups.filter(x => x !== code);
+      if (!g.members.length) { delete db.codes[g.code]; delete db.groups[gid]; }
+      db.users[as].groups = db.users[as].groups.filter(x => x !== gid);
       emit();
       return ok();
     },
