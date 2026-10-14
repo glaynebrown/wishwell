@@ -380,25 +380,24 @@
     openSheet(`
       <div class="sheet-head"><h2>${e.id ? (isIdea ? 'Edit idea' : 'Edit wish') : (isIdea ? `Gift idea for ${esc(ownerName)}` : 'Add a wish')}</h2>
         <button class="btn quiet" data-act="close">Cancel</button></div>
-      ${isIdea ? `<p class="secret-note">${icon('lock')}<span>${esc(ownerName)} will never see this.</span></p>` : ''}
-      <div class="field"><label for="f-link">Link <span class="muted">(optional)</span></label>
-        <div class="row"><input class="input grow" id="f-link" type="url" inputmode="url" placeholder="Paste a store link" value="${esc(e.link || '')}">
+      ${isIdea ? `<div class="vis-pick" role="radiogroup" aria-label="Who can see this idea">${icon('lock')}
+          ${groups.map(g => `<label><input type="radio" name="f-scope" value="${esc(g.id)}" ${scope === g.id ? 'checked' : ''}><span>${esc(g.name)}</span></label>`).join('')}
+          <label><input type="radio" name="f-scope" value="me" ${scope === 'me' ? 'checked' : ''}><span>Just me</span></label></div>
+        <p class="hint" style="margin:-4px 0 12px">${esc(ownerName)} never sees ideas.</p>` : ''}
+      <div class="row tight"><input class="input grow" id="f-link" type="url" inputmode="url" aria-label="Link" placeholder="Paste a store link (optional)" value="${esc(e.link || '')}">
         <button class="btn soft small" id="f-fill" type="button">Fill in</button></div>
-        <div class="fill-note" id="f-note"></div></div>
-      <div class="field"><label for="f-name">${isIdea ? 'Idea' : 'What is it?'}</label><input class="input" id="f-name" value="${esc(e.name || '')}" placeholder="${isIdea ? 'e.g. A new grill' : 'e.g. Cozy slippers'}"></div>
-      <div class="field"><span class="label">Photo <span class="muted">(optional)</span></span>
-        <div class="photo-pick"><span id="f-photo">${thumb({ photo, name: e.name || '+' })}</span>
-          <div class="row"><button class="btn ghost small" id="f-upload" type="button">${icon('photo')}Choose</button>
-          <button class="btn ghost small" id="f-paste" type="button">Paste</button>
-          <button class="btn quiet small" id="f-nophoto" type="button" ${photo ? '' : 'hidden'}>Remove</button></div></div></div>
-      <div class="row" style="gap:12px;align-items:flex-start">
-        <div class="field grow"><label for="f-price">Price <span class="muted">(optional)</span></label><input class="input" id="f-price" inputmode="decimal" placeholder="$" value="${e.price != null ? esc(e.price) : ''}"></div>
-        <div class="field grow"><label for="f-store">Store <span class="muted">(optional)</span></label><input class="input" id="f-store" value="${esc(e.store || '')}"></div>
+      <div class="fill-note" id="f-note"></div>
+      <input class="input tight" id="f-name" aria-label="${isIdea ? 'Idea' : 'What is it?'}" value="${esc(e.name || '')}" placeholder="${isIdea ? 'The idea' : 'What is it?'}">
+      <div class="photo-row tight">
+        <button type="button" class="photo-btn" id="f-upload" aria-label="Choose a photo"><span id="f-photo">${photo ? thumb({ photo, name: '' }) : `<span class="thumb">${icon('photo')}</span>`}</span></button>
+        <div class="photo-side">
+          <label class="money-in"><span aria-hidden="true">$</span><input class="input" id="f-price" inputmode="decimal" aria-label="Price" placeholder="Price" value="${e.price != null ? esc(e.price) : ''}"></label>
+          <input class="input" id="f-store" aria-label="Store" placeholder="Store" value="${esc(e.store || '')}">
+          <div class="photo-links"><button class="linkbtn" id="f-paste" type="button">Paste photo</button><button class="linkbtn" id="f-nophoto" type="button" ${photo ? '' : 'hidden'}>Remove photo</button></div>
+        </div>
       </div>
-      <div class="field"><label for="f-notes">Notes <span class="muted">(size, color…)</span></label><textarea class="input" id="f-notes" rows="2">${esc(e.notes || '')}</textarea></div>
-      ${isIdea ? `<div class="field"><label for="f-scope">Who can see this idea</label><select class="input" id="f-scope">
-          ${groups.map(g => `<option value="${esc(g.id)}" ${scope === g.id ? 'selected' : ''}>${esc(g.name)} (not ${esc(ownerName)})</option>`).join('')}
-          <option value="me" ${scope === 'me' ? 'selected' : ''}>Just me</option></select></div>` : `
+      <textarea class="input tight notes" id="f-notes" rows="3" aria-label="Notes" placeholder="Notes — size, color, anything helpful…">${esc(e.notes || '')}</textarea>
+      ${isIdea ? '' : `
       <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
         <button class="star-toggle ${star ? 'on' : ''}" id="f-star" type="button">${icon('star')}Really want</button>
         <div class="row"><span class="label">How many</span><span class="stepper"><button type="button" id="f-minus" aria-label="Fewer">−</button><span id="f-qty">${qty}</span><button type="button" id="f-plus" aria-label="More">+</button></span></div>
@@ -411,7 +410,7 @@
     const note = (msg, good) => { const n = $('#f-note'); n.textContent = msg; n.className = 'fill-note' + (good ? ' good' : ''); };
     const setPhoto = p => {
       photo = p || '';
-      $('#f-photo').innerHTML = thumb({ photo, name: $('#f-name').value || '+' });
+      $('#f-photo').innerHTML = photo ? thumb({ photo, name: '' }) : `<span class="thumb">${icon('photo')}</span>`;
       $('#f-nophoto').hidden = !photo;
     };
     let lastFilled = '';
@@ -470,7 +469,7 @@
       $('#f-save').disabled = true;
       try {
         if (isIdea) {
-          await API.saveIdea(ctx.owner, cleanEntry({ ...base, id: e.id, scope: $('#f-scope').value, by: e.by || S.me, byName: e.byName || myName(), at: e.at || Date.now() }), e.id ? e : null);
+          await API.saveIdea(ctx.owner, cleanEntry({ ...base, id: e.id, scope: (sheet.querySelector('[name=f-scope]:checked') || {}).value || 'me', by: e.by || S.me, byName: e.byName || myName(), at: e.at || Date.now() }), e.id ? e : null);
         } else {
           await API.saveItem(cleanEntry({ ...base, id: e.id, star, qty, createdAt: e.createdAt || Date.now() }));
         }
@@ -730,7 +729,7 @@
     const ideas = sorted(S.ideas[uid] || [], 'new');
     const groups = mySharedGroups(uid);
     const evs = Dates.events(p, undefined, S.me);
-    const whoSees = groups.length ? `Only ${groups.map(g => esc(g.name)).join(' and ')} can see these — never ${esc(p.name)}.` : `Only you can see ideas you add here — ${esc(p.name)} can’t.`;
+    const whoSees = groups.length ? `Seen by ${groups.map(g => esc(g.name)).join(' and ')}, or just you — never ${esc(p.name)}.` : `Only you can see ideas you add here — ${esc(p.name)} can’t.`;
     view.innerHTML = `<a class="back" href="#/people">${icon('back')}People</a>
       <div class="person-head"><div><h1>${esc(p.name)}</h1><p class="sub muted" style="margin:2px 0 0">${esc(circleWords(uid))}</p></div></div>
       <p class="date-line">${evs.length ? evs.map(ev => `<span title="${esc(ev.name)} · ${Dates.inWords(ev.days)}">${ev.emoji} ${Dates.fmt(ev.date)}</span>`).join('<span aria-hidden="true">·</span>') : '<span>No dates yet</span>'}
