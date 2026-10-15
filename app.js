@@ -149,7 +149,7 @@
     renderTabs(r.name);
     const screens = isKid()
       ? { list: viewList, received: viewReceived, settings: viewSettings }
-      : { list: viewList, received: viewReceived, people: viewPeople, p: viewPerson, shopping: viewShopping, settings: viewSettings };
+      : { list: viewList, received: viewReceived, people: viewPeople, p: viewPerson, shopping: viewShopping, settings: viewSettings, find: viewFind };
     (screens[r.name] || viewList)(r.arg);
     renderBanner();
     if (freshStart) { freshStart = false; window.scrollTo(0, 0); }
@@ -856,6 +856,24 @@
       closeSheet();
       try { await API.savePersonDates(p.uid, { birthday: birthday || p.birthday || '', birthYear, holidays }); toast('Saved'); } catch (e) { oops(e); }
     };
+  }
+
+  // #/find/Mom -- opened from the Family Calendar's "wishlist" link on a birthday.
+  // Finds that person among your connections (lists load in a moment, so give
+  // it a few seconds before giving up and showing People).
+  let findStarted = 0;
+  function viewFind(name) {
+    const q = (name || '').trim().toLowerCase();
+    const all = people();
+    const p = all.find(x => (x.name || '').trim().toLowerCase() === q)
+      || all.find(x => (x.name || '').toLowerCase().split(/\s+/)[0] === q.split(/\s+/)[0])
+      || all.find(x => (x.name || '').toLowerCase().includes(q) || q.includes((x.name || '').toLowerCase()));
+    if (p) { findStarted = 0; location.replace('#/p/' + encodeURIComponent(p.uid)); return; }
+    if (!findStarted) { findStarted = Date.now(); setTimeout(render, 3500); }
+    if (Date.now() - findStarted < 3000) { view.innerHTML = '<p class="loading">Finding their wishlist…</p>'; return; }
+    findStarted = 0;
+    location.replace('#/people');
+    toast(`Couldn’t find “${name}” in Wishwell — pick them here`);
   }
 
   // ---------- Shopping ----------
