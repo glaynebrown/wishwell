@@ -123,7 +123,7 @@
     view.innerHTML = '<p class="loading">Loading…</p>';
     API.start(s => { S = s; render(); });
   });
-  window.addEventListener('hashchange', () => { ui.showTaken = false; render(); window.scrollTo(0, 0); });
+  window.addEventListener('hashchange', () => { ui.showTaken = false; findStarted = 0; render(); window.scrollTo(0, 0); });
   view.addEventListener('focusout', () => setTimeout(() => { if (pending && !typing()) render(); }, 0));
   const typing = () => view.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== 'checkbox';
 
@@ -151,7 +151,7 @@
       ? { list: viewList, received: viewReceived, settings: viewSettings }
       : { list: viewList, received: viewReceived, people: viewPeople, p: viewPerson, shopping: viewShopping, settings: viewSettings, find: viewFind };
     (screens[r.name] || viewList)(r.arg);
-    renderBanner();
+    if (!document.documentElement.classList.contains('embed')) renderBanner();
     if (freshStart) { freshStart = false; window.scrollTo(0, 0); }
   }
 
@@ -871,9 +871,18 @@
     if (p) { findStarted = 0; location.replace('#/p/' + encodeURIComponent(p.uid)); return; }
     if (!findStarted) { findStarted = Date.now(); setTimeout(render, 3500); }
     if (Date.now() - findStarted < 3000) { view.innerHTML = '<p class="loading">Finding their wishlist…</p>'; return; }
-    findStarted = 0;
-    location.replace('#/people');
-    toast(`Couldn’t find “${name}” in Wishwell — pick them here`);
+    // Not found: they're probably not on Wishwell (or not linked with you yet).
+    const embed = document.documentElement.classList.contains('embed');
+    const g = S.groups[0];
+    view.innerHTML = `<div class="card empty" style="margin-top:24px">
+      <svg class="mark"><use href="#i-mark"/></svg>
+      <h2>${esc(name)} isn’t on Wishwell yet</h2>
+      <p>Or you’re not linked with ${esc(name)} yet. Invite them to make a wishlist${g ? ` — they’ll join ${esc(g.name)}` : ''}.</p>
+      <button class="btn" id="find-invite">${icon('copy')}Invite ${esc(name)}</button>
+      ${embed ? `<p class="hint" style="margin-top:16px">Your calendar’s gift notes still work for ${esc(name)} in the meantime.</p>` : ''}
+      <p style="margin:14px 0 0"><a class="linkbtn" href="#/people">Pick from your people instead</a></p>
+    </div>`;
+    $('#find-invite').onclick = () => (g ? shareCode(g.code, 'group', g.name) : shareCode(S.profile.code, 'person'));
   }
 
   // ---------- Shopping ----------
